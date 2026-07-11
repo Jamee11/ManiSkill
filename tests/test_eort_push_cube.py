@@ -89,6 +89,10 @@ class PushCubeEORTTest(unittest.TestCase):
                     "robot_obj_contact_force",
                     data=np.array([[0, 0, 0], [2, 0, 0], [1, 0, 0], [0, 0, 0]], dtype=np.float32),
                 )
+                extra.create_dataset(
+                    "robot_obj_contact_force_norm",
+                    data=np.array([[0], [2], [1], [0]], dtype=np.float32),
+                )
                 camera = obs.create_group("sensor_data").create_group("base_camera")
                 camera.create_dataset("rgb", data=np.zeros((4, 2, 2, 3), dtype=np.uint8))
                 camera.create_dataset("depth", data=np.zeros((4, 2, 2, 1), dtype=np.uint16))
@@ -102,7 +106,7 @@ class PushCubeEORTTest(unittest.TestCase):
             self.assertEqual(summary["schema_version"], module.OBJECTCENTRIC_V2_SCHEMA_VERSION)
             self.assertEqual(summary["future_horizons_steps"], [1, 4, 8])
             manifest = json.loads((root / "derived" / "manifest.jsonl").read_text())
-            self.assertEqual(manifest["physical_contact"]["source"], "robot_obj_contact_force")
+            self.assertEqual(manifest["physical_contact"]["source"], "robot_obj_contact_force_norm")
             self.assertEqual(manifest["push_interaction_phase_labels"]["2"], "measured_contact_while_object_moves")
             with np.load(root / "derived" / "traj_0.npz") as labels:
                 self.assertEqual(labels["physical_contact"].tolist(), [[False], [True], [True]])
@@ -118,8 +122,10 @@ class PushCubeEORTTest(unittest.TestCase):
     def test_objectcentric_task_is_registered_without_changing_pushcube(self):
         import gymnasium as gym
         import mani_skill.envs.tasks  # noqa: F401
+        from mani_skill.envs.tasks.tabletop.push_cube_eort import PushCubeEORTEnv
 
         self.assertEqual(gym.spec("PushCubeEORT-v1").id, "PushCubeEORT-v1")
+        self.assertEqual(PushCubeEORTEnv.SUPPORTED_ROBOTS, ["panda"])
 
 
 if __name__ == "__main__":

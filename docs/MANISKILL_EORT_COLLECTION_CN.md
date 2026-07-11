@@ -26,7 +26,7 @@ v2 不替换 v1，而是使用独立的 `PushCubeEORT-v1` 和输出目录。它�
 
 v2 每条 `.npz` 额外包含：
 
-- `robot_obj_contact_force` `(T,3)`、`physical_contact` `(T,1)`、`push_interaction_phase` `(T,1)`；
+- `robot_obj_contact_force` `(T,3)`、`robot_obj_contact_force_norm` `(T,1)`、`physical_contact` `(T,1)`、`push_interaction_phase` `(T,1)`；`physical_contact` 使用 Panda hand/左右 finger 的 force norm 之和，避免向量抵消；
 - `object_linear_velocity` / `object_angular_velocity` `(T,3)`；
 - `ee_to_object_rotvec` `(T,3)`，由正确的 wxyz 相对旋转得到；
 - `object_future_delta_pos` / `object_future_delta_rotvec` `(T,3,3)`，默认 horizons 为 `[1,4,8]` action steps；

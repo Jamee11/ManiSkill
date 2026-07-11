@@ -186,11 +186,14 @@ def derive_trajectory_objectcentric_v2(
     robot_obj_contact_force = _finite_array(
         group, "obs/extra/robot_obj_contact_force", steps, 3
     )
+    robot_obj_contact_force_norm = _finite_array(
+        group, "obs/extra/robot_obj_contact_force_norm", steps, 1
+    )
     future_pos_delta, future_rotvec, future_valid = _future_object_transitions(
         object_pose, steps, future_horizons
     )
     contact_force = robot_obj_contact_force[:-1]
-    physical_contact = np.linalg.norm(contact_force, axis=1) > contact_force_threshold
+    physical_contact = robot_obj_contact_force_norm[:-1, 0] > contact_force_threshold
     object_speed = np.linalg.norm(object_linear_velocity[:-1], axis=1)
     interaction_phase = np.zeros(steps, dtype=np.int8)
     interaction_phase[physical_contact] = 1
@@ -203,6 +206,7 @@ def derive_trajectory_objectcentric_v2(
             "object_linear_velocity": object_linear_velocity[:-1],
             "object_angular_velocity": object_angular_velocity[:-1],
             "robot_obj_contact_force": contact_force,
+            "robot_obj_contact_force_norm": robot_obj_contact_force_norm[:-1],
             "physical_contact": physical_contact[:, None],
             "push_interaction_phase": interaction_phase[:, None],
             "ee_to_object_rotvec": _relative_rotation_rotvec(
@@ -279,7 +283,7 @@ def derive_dataset(
             records[-1].update(
                 {
                     "physical_contact": {
-                        "source": "robot_obj_contact_force",
+                        "source": "robot_obj_contact_force_norm",
                         "force_norm_threshold": contact_force_threshold,
                     },
                     "push_interaction_phase_labels": {
@@ -310,7 +314,7 @@ def derive_dataset(
     if schema == "objectcentric_v2":
         summary.update(
             {
-                "physical_contact_source": "robot_obj_contact_force",
+                "physical_contact_source": "robot_obj_contact_force_norm",
                 "contact_force_threshold": contact_force_threshold,
                 "future_horizons_steps": list(future_horizons),
             }
