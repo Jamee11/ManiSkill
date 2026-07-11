@@ -29,3 +29,10 @@
 - 原因：在默认 CUDA device（GPU 0）采集 10 条时，SAPIEN Vulkan buffer 报 out-of-memory 并 exit 139；不应自动扫描并抢占其他训练 GPU。
 - 精确变更：`collect_push_cube_eort.sh` 仅在调用方提供 `MANISKILL_EORT_CUDA_VISIBLE_DEVICES` 时导出为 `CUDA_VISIBLE_DEVICES`，让用户/调度器显式选择经 smoke 验证的 renderer GPU。
 - 保留行为：未指定时完全继承现有 CUDA 可见性；不删除失败目录或已有数据。
+
+## 2026-07-11 03:45:45 UTC — PushCube object-centric oracle v2
+
+- 原因：v1 只能记录当前位置关系和一步平移，无法为 object pose、真实接触交互阶段及多尺度未来轨迹提供完整、可审计的监督。
+- 精确变更：新增不改变物理/奖励/成功条件的 `PushCubeEORT-v1` 环境，仅额外记录物体线速度、角速度和 Panda hand/finger 对物体的真实接触力；保留 `PushCube-v1` 与 v1 导出不变。`derive_push_cube_eort.py --schema objectcentric_v2` 在真实接触力基础上导出 `physical_contact`、task-specific `push_interaction_phase`、正确的 EE→object rotation-vector、`[1,4,8]` action-step 未来平移/旋转及有效性 mask。新增不可覆盖的 v2 采集脚本。
+- 明确不做：不写距离阈值 contact、固定接触点/法线或伪接触面积；不训练、不修改动作模型、不批量采集。
+- 验证：离线单元测试覆盖 `wxyz` 相对旋转、真实 force→contact 阶段和未来 horizon 对齐；CPU PhysX + GPU renderer reset/step smoke 输出三个新增 `(1,3)` 有限字段。

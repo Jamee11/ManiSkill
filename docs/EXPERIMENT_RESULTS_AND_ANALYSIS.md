@@ -36,3 +36,10 @@
 - 决策：用户要求本机不再因 GPU 满载而重试采集；不选择或抢占其他正在训练的 GPU。
 - 保留证据：1 条端到端 smoke 已成功，验证原生 HDF5、sidecar 导出、manifest 和数值完整性。
 - 下一步：在另一台有可用 GPU 的机器上，先用 `MANISKILL_EORT_CUDA_VISIBLE_DEVICES=<gpu> NUM_TRAJ=1` 验证，再执行 `NUM_TRAJ=10`；准确命令见 `docs/MANISKILL_EORT_COLLECTION_CN.md`。
+
+### 2026-07-11 03:45:45 UTC — object-centric v2 环境与标签 smoke
+
+- 设置：新增 `PushCubeEORT-v1`，保持原 PushCube 物理、奖励和成功条件；额外观测为真实 `robot_obj_contact_force`、物体线速度、角速度。导出器使用 action-aligned horizons `[1,4,8]`，并以 `q_target ⊗ inverse(q_reference)` 计算旋转向量。
+- 离线结果：3/3 单元测试通过。v2 fixture 证明 force 为零/非零时 `physical_contact` 分别为 false/true，接触且物体在动时 phase=push，未来 mask 不把末帧补零误当真值，π/2 旋转关系正确。
+- 运行时结果：CPU PhysX + GPU renderer reset/step smoke 成功，三个新增字段均为有限 `(1,3)`。该 smoke 没有写 trajectory，也没有进行批量采集。
+- 分析与下一步：真实物理 force 已进入观测，但尚未验证它在 motion-planning HDF5 中和 `T` action 持久化对齐。另一台空闲 GPU 机器必须先执行 v2 的 `NUM_TRAJ=1`，检查 raw HDF5 的 `T+1` force/velocity 和 derived `T` 标签，再扩大数据量。

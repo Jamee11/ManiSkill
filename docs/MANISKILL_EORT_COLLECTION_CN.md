@@ -20,6 +20,28 @@
 
 不包含伪物理 contact、固定 normal 或四元数相减标签。HDF5 observation 为 `T+1`，action 和所有 sidecar 标签为 `T`。
 
+## object-centric v2
+
+v2 不替换 v1，而是使用独立的 `PushCubeEORT-v1` 和输出目录。它保持原 PushCube 物理、奖励与成功条件，只额外记录真实 robot-object contact force、物体线速度/角速度。导出器的 contact 来自力范数而不是距离；阶段仅适用于 PushCube：`0=approach`、`1=measured contact`、`2=contact while object moves`、`3=goal reached after contact`。
+
+v2 每条 `.npz` 额外包含：
+
+- `robot_obj_contact_force` `(T,3)`、`physical_contact` `(T,1)`、`push_interaction_phase` `(T,1)`；
+- `object_linear_velocity` / `object_angular_velocity` `(T,3)`；
+- `ee_to_object_rotvec` `(T,3)`，由正确的 wxyz 相对旋转得到；
+- `object_future_delta_pos` / `object_future_delta_rotvec` `(T,3,3)`，默认 horizons 为 `[1,4,8]` action steps；
+- `object_future_valid` `(T,3)`，末尾 horizon 不足时为 false，数值零不代表真值。
+
+```bash
+MANISKILL_EORT_PYTHON=/path/to/conda/env/bin/python \
+MANISKILL_EORT_CUDA_VISIBLE_DEVICES=0 \
+MANISKILL_EORT_DATA_ROOT=/path/to/datasets/maniskill_push_cube_objectcentric_v2 \
+NUM_TRAJ=1 \
+bash scripts/eort/collect_push_cube_objectcentric_v2.sh
+```
+
+v2 的首条真实 HDF5 必须确认 `obs/extra/{robot_obj_contact_force,obj_linear_velocity,obj_angular_velocity}` 是 `T+1`，而 derived labels 是 `T`；通过前不得将 v2 接入训练。
+
 ## 在有可用 GPU 的机器采集
 
 CPU PhysX 配合 GPU renderer 是首版的目标配置。不要设置空的 `CUDA_VISIBLE_DEVICES`；本机的 SAPIEN CPU renderer 会崩溃。先以 1 条 smoke 验证指定 GPU，再扩大到 10 条。

@@ -18,6 +18,7 @@ MP_SOLUTIONS = {
     "PlugCharger-v1": solvePlugCharger,
     "PlaceSphere-v1": solvePlaceSphere,
     "PushCube-v1": solvePushCube,
+    "PushCubeEORT-v1": solvePushCube,
     "PullCubeTool-v1": solvePullCubeTool,
     "LiftPegUpright-v1": solveLiftPegUpright,
     "PullCube-v1": solvePullCube,
