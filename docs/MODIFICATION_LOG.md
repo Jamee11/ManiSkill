@@ -123,3 +123,9 @@
 - 原因：10 条最终成功轨迹的 `phase=3` 为零；原实现以 `goal_progress>=0.999` 判终态，比 PushCube 原生成功容差严格，造成语义不一致。
 - 精确变更：v2 导出器仅将 terminal phase 改为使用已有的 action-aligned raw `success(T)`；phase 3 优先于接触/运动阶段。未改变物理、成功条件、进度字段、future 标签或 policy 输入字段。
 - 验证：离线 v2 fixture 末步 native success 现在导出 phase 3，前两步仍为 approach/moving-contact；10-trajectory pilot 已重新派生至独立 `derived_success_phase`，逐帧断言 `phase==3` 等于 raw `success`，通过。
+
+## 2026-07-13 13:31:00 UTC — EORT 原始视觉分辨率提升至 256×256
+
+- 原因：128×128 raw RGB-D/segmentation 经过 DiT4DiT 的 224×224 resize 只能插值，不能恢复 object 边界、纹理或深度细节；这不适合后续 object tracker。
+- 精确变更：仅 `PushCubeEORT-v1` 覆盖 inherited `base_camera` 的 width/height 为 256。保留相机位姿、FOV、物理、奖励、原始 PushCube-v1 和既有 128×128 pilot 不变；训练端仍可按 encoder 要求下采样。
+- 验证门槛：下次 GPU renderer smoke 必须确认 raw RGB/depth/segmentation 为 `(T+1,256,256,3/1/1)`，并重新记录显存与 object-pixel QA；本次不在繁忙 GPU 上启动新采集。

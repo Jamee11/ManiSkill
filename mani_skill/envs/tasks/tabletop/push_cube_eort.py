@@ -19,6 +19,15 @@ class PushCubeEORTEnv(PushCubeEnv):
     """PushCube with raw object velocity and measured robot-object contact force."""
 
     SUPPORTED_ROBOTS = ["panda"]
+    EORT_CAMERA_RESOLUTION = 256
+
+    @property
+    def _default_sensor_configs(self):
+        configs = super()._default_sensor_configs
+        base_camera = next(config for config in configs if config.uid == "base_camera")
+        base_camera.width = self.EORT_CAMERA_RESOLUTION
+        base_camera.height = self.EORT_CAMERA_RESOLUTION
+        return configs
 
     def _get_obs_extra(self, info: dict) -> dict[str, Any]:
         obs = super()._get_obs_extra(info)

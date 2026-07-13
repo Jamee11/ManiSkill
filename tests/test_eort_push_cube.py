@@ -177,6 +177,7 @@ class PushCubeEORTTest(unittest.TestCase):
 
         self.assertEqual(gym.spec("PushCubeEORT-v1").id, "PushCubeEORT-v1")
         self.assertEqual(PushCubeEORTEnv.SUPPORTED_ROBOTS, ["panda"])
+        self.assertEqual(PushCubeEORTEnv.EORT_CAMERA_RESOLUTION, 256)
 
 
 if __name__ == "__main__":

@@ -127,3 +127,8 @@
 - 发现：上述 pilot 的 raw `success[-1]=true`，但 `push_interaction_phase=3` 计数为零。根因是 sidecar 以 `goal_progress>=0.999` 近似终态，严格于原生 PushCube 成功容差。
 - 修正：phase 3 直接采用原生 action-aligned `success(T)`，且覆盖同帧的接触阶段。这保留连续 `goal_progress` 作诊断，但不再拿它定义任务成功。
 - 验证：更新了可构造的 v2 fixture，使末步 success 必须导出 phase 3。旧 pilot NPZ 保持不可变；同一 raw HDF5 已重新派生至 `derived_success_phase`。10 条、686 帧逐元素满足 `phase==3` 等于 raw `success`；phase counts 变为 approach=450、contact=7、moving-in-contact=144、goal=85。85 是 environment success 维持为 true 的帧数，不应误读为只有 10 个 terminal frame。
+
+### 2026-07-13 13:31:00 UTC — 后续 EORT 采集分辨率决策
+
+- 决策：后续 `PushCubeEORT-v1` 原始 RGB、depth 和 segmentation 从 128×128 改为 256×256。DiT4DiT 的 224×224 input resize 现在是下采样而非 128 的上采样；现有 pilot 保留为低分辨率 schema/出口回归数据，不混入未来 tracker 质量结论。
+- 未做：不重采已有 pilot、不修改 raw HDF5、不在本次繁忙 GPU 上启动 smoke 或批量收集。下一次显式 GPU smoke 需检查 256×256 streams、object mask pixel 数、sidecar/LeRobot shape、渲染显存和导出吞吐。
