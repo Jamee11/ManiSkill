@@ -2,13 +2,13 @@
 
 ## ManiSkill PushCube EORT pilot
 
-状态：环境与 schema smoke 已通过；尚未完成端到端轨迹采集。
+状态：环境、schema smoke 与 1 条 v2 端到端轨迹验证已通过；尚未进行批量采集或训练。
 
 计划：完成 `maniskill-eort` 环境 smoke 后，采集 10 条成功的 `PushCube-v1` motion-planning 轨迹，并导出/验证 EORT sidecar。
 
 预注册检查：环境版本、episode 成功数、HDF5 schema、`T+1` observation 与 `T` action 对齐、所有导出数值有限、RGB/depth/segmentation 流存在。
 
-下一步：仅在上述 smoke 全部通过后扩大数据量；若失败，记录失败命令、根因与修复方案，且不进行训练。
+下一步：在经调度确认的 GPU 上扩大数据量；若失败，记录失败命令、根因与修复方案，且不进行训练。
 
 ### 2026-07-10 11:50:41 UTC — 导出器离线单元检查
 
@@ -43,3 +43,11 @@
 - 离线结果：3/3 单元测试通过。v2 fixture 证明 force 为零/非零时 `physical_contact` 分别为 false/true，接触且物体在动时 phase=push，未来 mask 不把末帧补零误当真值，π/2 旋转关系正确。
 - 运行时结果：CPU PhysX + GPU renderer reset/step smoke 成功，三个新增字段均为有限 `(1,3)`。该 smoke 没有写 trajectory，也没有进行批量采集。
 - 分析与下一步：真实物理 force 已进入观测，但尚未验证它在 motion-planning HDF5 中和 `T` action 持久化对齐。另一台空闲 GPU 机器必须先执行 v2 的 `NUM_TRAJ=1`，检查 raw HDF5 的 `T+1` force/velocity 和 derived `T` 标签，再扩大数据量。
+
+### 2026-07-13 06:50:18 UTC — PushCube object-centric v2 真实 HDF5 验证
+
+- 设置：用户授权后在 GPU 4 运行 `MANISKILL_EORT_CUDA_VISIBLE_DEVICES=4 NUM_TRAJ=1 bash scripts/eort/collect_push_cube_objectcentric_v2.sh`；输出为新目录 `/remote-home/jinminghao/datasets/maniskill_push_cube_objectcentric_v2_v2_gpu4_20260713T065018Z`，未覆盖已有数据。
+- 采集结果：motion planner 1/1 成功，成功率 1，失败规划率 0，轨迹长度 `T=71`；派生器写入 `maniskill_push_cube_objectcentric_oracle_v2` manifest，horizons 为 `[1,4,8]`。
+- 对齐检查：raw `obj_linear_velocity`、`obj_angular_velocity`、`robot_obj_contact_force`、`robot_obj_contact_force_norm` 分别为有限的 `(72,3)/(72,3)/(72,3)/(72,1)`；derived 对应字段为前 71 帧。逐元素断言 raw `[:T]` 等于 derived，`physical_contact` 逐帧等于 raw force-norm `>1e-6`。
+- 标签结果：23/71 帧为测得接触；phase 计数为 approach=48、measured-contact-while-object-moves=23。未来位移、旋转和有效性 mask 均为 `(71,3,3)` 且有限（mask 为 bool）。
+- 分析与下一步：这解除 v2 在真实成功 HDF5 上的物理接触和时间对齐疑虑，但只覆盖单条 PushCube oracle 轨迹。批量采集前仍需增加 RGB/depth/segmentation 的对象可见率与 mask 覆盖率 QA；此数据也不能替代真实感知输入或证明 sim2real 效果。

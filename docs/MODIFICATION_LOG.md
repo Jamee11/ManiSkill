@@ -42,3 +42,10 @@
 - 原因：多个真实接触 link 的三维力向量直接求和可能相互抵消，使接触判定出现假阴性。
 - 精确变更：`PushCubeEORT-v1` 限定 Panda，并额外记录 `robot_obj_contact_force_norm`：Panda hand、左右 finger 三个 link 的 force norm 之和；v2 的 `physical_contact` 仅使用该标量阈值，仍保留 net force vector 供诊断。
 - 验证：更新离线 HDF5 fixture 和 manifest 断言；真实 HDF5 持久化验证仍待空闲 GPU 机器执行。
+
+## 2026-07-13 06:50:18 UTC — v2 真实轨迹采集验证
+
+- 原因：必须在不覆盖既有数据的前提下，确认 v2 的新增真实物理字段能由 ManiSkill motion-planning HDF5 持久化，并与 action-aligned sidecar 严格对应。
+- 精确变更：未修改代码或配置；使用调用方显式指定的 GPU 4，写入新的单轨迹数据目录并运行已有 v2 采集、派生和逐元素对齐检查。
+- 证据：1/1 成功轨迹有 `T=71` action 与 `T+1=72` 原始观测；速度、net force 和 force-norm 全部有限，derived 前 `T` 帧与 raw 完全一致，接触标签逐帧匹配 force-norm 阈值。
+- 明确不做：不把单条 oracle 轨迹用于训练结论，不开始批量采集，不将 simulator GT 视为部署时感知。
