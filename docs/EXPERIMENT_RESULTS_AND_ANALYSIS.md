@@ -71,3 +71,9 @@
 - 采集结果：1/1 成功、`T=71`，raw 新增 `obj_segmentation_id` 和 `goal_segmentation_id` 均为静态 `(72,1)` int32。
 - 对齐结果：object ID=18、goal ID=19；derived 的 mask pixel count、visibility fraction、visible bool 分别逐帧匹配 raw segmentation 前 `T` 帧。object 在 71/71 帧可见，面积为 22–30 px；goal 在 71/71 帧可见，面积为 510–524 px。
 - 分析：v2 已具备 object/goal 角色到 segmentation mask 的可审计链路。该结果只证明一条无完全遮挡轨迹的 schema 与对齐正确；批量阶段仍须统计可见率分布，并通过遮挡、漏检和 ID-switch 注入测试验证策略鲁棒性。
+
+### 2026-07-13 12:15:20 UTC — 跨机器人 EEF transition 可行性审计
+
+- 设置：只读计算同一条成功 HDF5 的相邻 TCP pose 相对变化，平移在当前 EEF 局部坐标系表达；不写入数据集。
+- 结果：得到有限的 `(71,3)` local translation transition，逐维最大绝对值为 `[0.00875, 0.00372, 0.03416]` m。raw 仍为 `(71,8)` Panda joint target；夹爪维恒为 `-1`，对应统一 open fraction `0`。
+- 分析：可以从 `T+1` TCP pose 稳定导出 observation transition，但它是实际状态转移，不是 planner 的原始控制命令。任何将它用于 DiT4DiT/X-WAM action supervision 的实验必须显式命名为 transition-target，并另做 controller replay 评估。
