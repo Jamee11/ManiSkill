@@ -147,3 +147,9 @@
 - 原因：actor ID、可见率与 3D oracle pose 足以审计数据，但没有直接给视觉 tracker 的 2D detection/crop supervision；将整张 segmentation mask 再写入 NPZ 会重复 raw HDF5。
 - 精确变更：v2 sidecar 新增 object/goal 的 `bbox_xyxy(T,4)` 与 `mask_centroid_uv(T,2)`。bbox 采用 `[x_min,y_min,x_max_exclusive,y_max_exclusive]`；不可见时 bbox/centroid 为零，已有 `visible(T,1)` 是唯一有效性判据。raw segmentation 继续是 mask 的唯一来源。manifest phase-3 文案同步为 `native_task_success`。
 - 验证：2×2 synthetic fixture 覆盖多像素、单像素和完全遮挡 bbox/centroid；256×256 real smoke 重派生后，object bbox 为 9–10 px 宽、11–12 px 高，所有 visible centroid 均位于对应 bbox 内。
+
+## 2026-07-13 13:49:42 UTC — 固定 episode 的相机外参随机化
+
+- 原因：固定相机的无障碍 PushCube 数据无法检验 tracker 是否依赖单一外参；逐控制步相机抖动又不符合真实静态外部相机。
+- 精确变更：新增独立 `PushCubeEORTCameraRand-v1`。它复用 PushCubeEORT 的物理、奖励、256×256 sensor 与 EORT fields，仅把 `base_camera` 挂到 kinematic mount，并在 reset 时对 eye/target 作有限均匀扰动；同一 episode 内 pose 不变。Panda motion-planning runner 和 collection script 接受该 env ID；v2 deriver 显式允许两个 EORT env ID。
+- 验证：GPU 4 上 2/2 原生 motion-planning 成功、raw RGB 均为 256×256；逐 trajectory 断言 extrinsic 在 episode 内恒定且两条之间不同。未增加物理遮挡物、纹理或逐帧 camera motion。

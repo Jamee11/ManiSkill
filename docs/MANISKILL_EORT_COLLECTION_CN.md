@@ -42,6 +42,8 @@ NUM_TRAJ=1 \
 bash scripts/eort/collect_push_cube_objectcentric_v2.sh
 ```
 
+若需要跨 episode 的外部相机外参随机化，额外设置 `MANISKILL_EORT_ENV_ID=PushCubeEORTCameraRand-v1`。该环境在 reset 时随机一次相机 pose、episode 内保持不动；raw `sensor_param/base_camera/{intrinsic_cv,extrinsic_cv}` 是唯一的标定记录来源。固定相机与随机相机数据必须分开记录 split，不能将其混为同一泛化结论。
+
 v2 的首条真实 HDF5 已确认物理字段与 `obj_segmentation_id`/`goal_segmentation_id` 均为 `T+1`，而 derived labels 是 `T`；通过前不得将 v2 接入训练。批量阶段仍须检查 visibility fraction 分布，不能仅凭一条全可见轨迹声明感知鲁棒。
 
 ## 在有可用 GPU 的机器采集

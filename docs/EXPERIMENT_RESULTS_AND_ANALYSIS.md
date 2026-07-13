@@ -151,3 +151,9 @@
 - 合成验证：2×2 fixture 中多像素 object 得到 `[0,0,2,2]`、centroid `[0.5,0.5]`；完全遮挡帧保持全零 bbox/centroid 且 `visible=false`；单像素和 goal 的独立坐标也通过。
 - 真实验证：256×256 smoke 重派生输出 `object_bbox_xyxy(71,4)`、`object_mask_centroid_uv(71,2)`；bbox 宽 9–10 px、高 11–12 px，71/71 visible centroid 均在框内。
 - 分析：这些标签可训练 object detection、ROI/crop 或视觉 token 对齐，但依赖 simulator actor ID，不能作为部署期输入；真实 tracker 必须只读取 RGB-D 与标定，且在遮挡/ID-switch 上单独评估。
+
+### 2026-07-13 13:49:42 UTC — camera-randomized EORT smoke
+
+- 设置：新增 `PushCubeEORTCameraRand-v1`；相机使用 kinematic mount，在 reset 时对默认 eye `[0.3,0,0.6]` 作最大 `[±0.04,±0.04,±0.025]` m 扰动、target 作最大 `[±0.015,±0.015,±0.01]` m 扰动。motion planner、CPU PhysX、GPU renderer、256×256 observation 与其他 EORT 标签不变。
+- 结果：GPU 4 上 `NUM_TRAJ=2`，2/2 final success；trajectory 长度 71/72 steps、RGB `(72/73,256,256,3)`。raw `extrinsic_cv` 在每条 trajectory 的所有 observation 完全相等，而两条的首帧 extrinsic 不相等；v2 sidecar 成功导出。
+- 分析：这提供真实相机固定、跨 episode viewpoint shift 的最小 sim2real camera split。它不覆盖遮挡、材质/光照、相机内参或真实噪声，不能宣称视觉鲁棒；这些应作为独立因素加入，而不是把相机每帧随机化。

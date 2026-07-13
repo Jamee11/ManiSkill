@@ -7,7 +7,8 @@ DATA_ROOT=${MANISKILL_EORT_DATA_ROOT:-/remote-home/jinminghao/datasets/maniskill
 RAW_ROOT="${DATA_ROOT}/raw"
 OUTPUT_DIR="${DATA_ROOT}/derived"
 NUM_TRAJ=${NUM_TRAJ:-10}
-TRAJ_PATH="${RAW_ROOT}/PushCubeEORT-v1/motionplanning/push_cube_objectcentric_v2.h5"
+ENV_ID=${MANISKILL_EORT_ENV_ID:-PushCubeEORT-v1}
+TRAJ_PATH="${RAW_ROOT}/${ENV_ID}/motionplanning/push_cube_objectcentric_v2.h5"
 
 if [[ -n "${MANISKILL_EORT_CUDA_VISIBLE_DEVICES:-}" ]]; then
   export CUDA_VISIBLE_DEVICES="${MANISKILL_EORT_CUDA_VISIBLE_DEVICES}"
@@ -20,7 +21,7 @@ fi
 
 cd "${PROJECT_ROOT}"
 "${PYTHON}" -m mani_skill.examples.motionplanning.panda.run \
-  --env-id PushCubeEORT-v1 \
+  --env-id "${ENV_ID}" \
   --num-traj "${NUM_TRAJ}" \
   --only-count-success \
   --obs-mode state_dict+rgb+depth+segmentation \

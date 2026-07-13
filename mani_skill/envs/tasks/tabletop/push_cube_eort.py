@@ -9,8 +9,10 @@ from __future__ import annotations
 from typing import Any
 
 import torch
+import sapien
 
 from mani_skill.envs.tasks.tabletop.push_cube import PushCubeEnv
+from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
 
 
@@ -51,3 +53,39 @@ class PushCubeEORTEnv(PushCubeEnv):
             ),
         )
         return obs
+
+
+@register_env("PushCubeEORTCameraRand-v1", max_episode_steps=50)
+class PushCubeEORTCameraRandEnv(PushCubeEORTEnv):
+    """EORT PushCube with a fixed-within-episode randomized external camera."""
+
+    CAMERA_EYE = (0.3, 0.0, 0.6)
+    CAMERA_TARGET = (-0.1, 0.0, 0.1)
+    CAMERA_EYE_JITTER = (0.08, 0.08, 0.05)
+    CAMERA_TARGET_JITTER = (0.03, 0.03, 0.02)
+
+    def _load_scene(self, options: dict):
+        super()._load_scene(options)
+        builder = self.scene.create_actor_builder()
+        builder.initial_pose = sapien.Pose()
+        self.camera_mount = builder.build_kinematic("eort_camera_mount")
+
+    @property
+    def _default_sensor_configs(self):
+        configs = super()._default_sensor_configs
+        base_camera = next(config for config in configs if config.uid == "base_camera")
+        base_camera.pose = sapien.Pose()
+        base_camera.mount = self.camera_mount
+        return configs
+
+    def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
+        super()._initialize_episode(env_idx, options)
+        with torch.device(self.device):
+            count = len(env_idx)
+            eye = torch.tensor(self.CAMERA_EYE, device=self.device) + (
+                torch.rand((count, 3), device=self.device) - 0.5
+            ) * torch.tensor(self.CAMERA_EYE_JITTER, device=self.device)
+            target = torch.tensor(self.CAMERA_TARGET, device=self.device) + (
+                torch.rand((count, 3), device=self.device) - 0.5
+            ) * torch.tensor(self.CAMERA_TARGET_JITTER, device=self.device)
+            self.camera_mount.set_pose(sapien_utils.look_at(eye=eye, target=target))

@@ -15,6 +15,7 @@ import numpy as np
 SCHEMA_VERSION = "maniskill_push_cube_eort_oracle_v1"
 OBJECTCENTRIC_V2_SCHEMA_VERSION = "maniskill_push_cube_objectcentric_oracle_v2"
 OBJECTCENTRIC_V2_ENV_ID = "PushCubeEORT-v1"
+OBJECTCENTRIC_V2_ENV_IDS = (OBJECTCENTRIC_V2_ENV_ID, "PushCubeEORTCameraRand-v1")
 DEFAULT_FUTURE_HORIZONS = (1, 4, 8)
 
 
@@ -405,9 +406,9 @@ def derive_dataset(
         schema_version = SCHEMA_VERSION
         derive = lambda group: derive_trajectory(group, camera)
     elif schema == "objectcentric_v2":
-        if task != OBJECTCENTRIC_V2_ENV_ID:
+        if task not in OBJECTCENTRIC_V2_ENV_IDS:
             raise ValueError(
-                f"objectcentric_v2 requires {OBJECTCENTRIC_V2_ENV_ID} metadata, got {task!r}"
+                f"objectcentric_v2 requires one of {OBJECTCENTRIC_V2_ENV_IDS} metadata, got {task!r}"
             )
         if contact_force_threshold < 0:
             raise ValueError("contact_force_threshold must be non-negative")

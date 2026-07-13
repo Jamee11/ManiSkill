@@ -179,11 +179,16 @@ class PushCubeEORTTest(unittest.TestCase):
     def test_objectcentric_task_is_registered_without_changing_pushcube(self):
         import gymnasium as gym
         import mani_skill.envs.tasks  # noqa: F401
-        from mani_skill.envs.tasks.tabletop.push_cube_eort import PushCubeEORTEnv
+        from mani_skill.envs.tasks.tabletop.push_cube_eort import (
+            PushCubeEORTCameraRandEnv,
+            PushCubeEORTEnv,
+        )
 
         self.assertEqual(gym.spec("PushCubeEORT-v1").id, "PushCubeEORT-v1")
+        self.assertEqual(gym.spec("PushCubeEORTCameraRand-v1").id, "PushCubeEORTCameraRand-v1")
         self.assertEqual(PushCubeEORTEnv.SUPPORTED_ROBOTS, ["panda"])
         self.assertEqual(PushCubeEORTEnv.EORT_CAMERA_RESOLUTION, 256)
+        self.assertEqual(PushCubeEORTCameraRandEnv.CAMERA_EYE_JITTER, (0.08, 0.08, 0.05))
 
 
 if __name__ == "__main__":
