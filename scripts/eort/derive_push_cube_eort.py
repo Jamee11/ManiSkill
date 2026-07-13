@@ -53,7 +53,7 @@ def _static_segmentation_id(group: h5py.Group, path: str, steps: int) -> int:
 
 def _segmentation_visibility(
     group: h5py.Group, camera: str, steps: int, actor_id: int
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     segmentation = np.asarray(_dataset(group, f"obs/sensor_data/{camera}/segmentation"))
     if (
         segmentation.ndim != 4
@@ -65,7 +65,19 @@ def _segmentation_visibility(
         )
     mask = segmentation[:steps, ..., 0] == actor_id
     pixels = mask.sum(axis=(1, 2), dtype=np.int32)
-    return pixels[:, None], (pixels / mask[0].size).astype(np.float32)[:, None]
+    bboxes = np.zeros((steps, 4), dtype=np.int32)
+    centroids = np.zeros((steps, 2), dtype=np.float32)
+    for step in range(steps):
+        rows, cols = np.nonzero(mask[step])
+        if len(rows):
+            bboxes[step] = [cols.min(), rows.min(), cols.max() + 1, rows.max() + 1]
+            centroids[step] = [cols.mean(), rows.mean()]
+    return (
+        pixels[:, None],
+        (pixels / mask[0].size).astype(np.float32)[:, None],
+        bboxes,
+        centroids,
+    )
 
 
 def _segdepth_centroid_world(
@@ -306,13 +318,13 @@ def derive_trajectory_objectcentric_v2(
         goal_segmentation_id = _static_segmentation_id(
             group, "obs/extra/goal_segmentation_id", steps
         )
-        object_mask_pixels, object_visibility_fraction = _segmentation_visibility(
+        object_mask_pixels, object_visibility_fraction, object_bbox_xyxy, object_mask_centroid_uv = _segmentation_visibility(
             group, camera, steps, object_segmentation_id
         )
         object_segdepth_centroid_world, object_segdepth_valid = _segdepth_centroid_world(
             group, camera, steps, object_segmentation_id
         )
-        goal_mask_pixels, goal_visibility_fraction = _segmentation_visibility(
+        goal_mask_pixels, goal_visibility_fraction, goal_bbox_xyxy, goal_mask_centroid_uv = _segmentation_visibility(
             group, camera, steps, goal_segmentation_id
         )
         visibility_arrays = {
@@ -321,6 +333,8 @@ def derive_trajectory_objectcentric_v2(
             "object_mask_pixels": object_mask_pixels,
             "object_visibility_fraction": object_visibility_fraction,
             "object_visible": object_mask_pixels > 0,
+            "object_bbox_xyxy": object_bbox_xyxy,
+            "object_mask_centroid_uv": object_mask_centroid_uv,
             "object_segdepth_centroid_world": object_segdepth_centroid_world,
             "object_segdepth_valid": object_segdepth_valid,
             "object_segdepth_centroid_error": np.where(
@@ -331,6 +345,8 @@ def derive_trajectory_objectcentric_v2(
             "goal_mask_pixels": goal_mask_pixels,
             "goal_visibility_fraction": goal_visibility_fraction,
             "goal_visible": goal_mask_pixels > 0,
+            "goal_bbox_xyxy": goal_bbox_xyxy,
+            "goal_mask_centroid_uv": goal_mask_centroid_uv,
         }
     future_pos_delta, future_rotvec, future_valid = _future_object_transitions(
         object_pose, steps, future_horizons
@@ -437,7 +453,7 @@ def derive_dataset(
                         "0": "approach",
                         "1": "measured_contact",
                         "2": "measured_contact_while_object_moves",
-                        "3": "goal_reached_after_contact",
+                        "3": "native_task_success",
                     },
                     "future_horizons_steps": list(future_horizons),
                     "eef_transition_local": {
@@ -452,6 +468,8 @@ def derive_dataset(
                     "object_id_source": "obs/extra/obj_segmentation_id",
                     "goal_id_source": "obs/extra/goal_segmentation_id",
                     "fraction": "matching pixels divided by camera image pixels",
+                    "bbox_xyxy": "[x_min,y_min,x_max_exclusive,y_max_exclusive] pixels; all zeros when invisible",
+                    "mask_centroid_uv": "mean [u,v] mask pixel coordinate; all zeros when invisible",
                     "segdepth_centroid": "segmentation actor pixels back-projected from millimeter depth with intrinsic_cv/extrinsic_cv; oracle actor ID only",
                 }
 

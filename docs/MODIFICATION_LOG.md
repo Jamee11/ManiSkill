@@ -141,3 +141,9 @@
 - 原因：仅 raw HDF5 为高分辨率不足以证明训练没有重新上采样或错误读取视频，必须检查 exporter metadata 和实际 loader sample。
 - 精确变更：未修改 DiT4DiT 代码；对 256×256 smoke 运行已有专用 exporter，并用既有 `ManiSkillEORTPushCubeOracleDataConfig` 读取一个 sample。
 - 证据：LeRobot video feature 为 `[256,256,3]`、20 FPS、71 Parquet rows 和 1 个 MP4；DiT4DiT dataset 初始化成功，实际 `image` tensor 为 `(3,224,224)`。这是 encoder 前的下采样，而非把 128×128 放大。
+
+## 2026-07-13 13:40:00 UTC — EORT 2D tracker supervision
+
+- 原因：actor ID、可见率与 3D oracle pose 足以审计数据，但没有直接给视觉 tracker 的 2D detection/crop supervision；将整张 segmentation mask 再写入 NPZ 会重复 raw HDF5。
+- 精确变更：v2 sidecar 新增 object/goal 的 `bbox_xyxy(T,4)` 与 `mask_centroid_uv(T,2)`。bbox 采用 `[x_min,y_min,x_max_exclusive,y_max_exclusive]`；不可见时 bbox/centroid 为零，已有 `visible(T,1)` 是唯一有效性判据。raw segmentation 继续是 mask 的唯一来源。manifest phase-3 文案同步为 `native_task_success`。
+- 验证：2×2 synthetic fixture 覆盖多像素、单像素和完全遮挡 bbox/centroid；256×256 real smoke 重派生后，object bbox 为 9–10 px 宽、11–12 px 高，所有 visible centroid 均位于对应 bbox 内。

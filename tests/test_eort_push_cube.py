@@ -132,7 +132,9 @@ class PushCubeEORTTest(unittest.TestCase):
             manifest = json.loads((root / "derived" / "manifest.jsonl").read_text())
             self.assertEqual(manifest["physical_contact"]["source"], "robot_obj_contact_force_norm")
             self.assertEqual(manifest["push_interaction_phase_labels"]["2"], "measured_contact_while_object_moves")
+            self.assertEqual(manifest["push_interaction_phase_labels"]["3"], "native_task_success")
             self.assertEqual(manifest["segmentation_visibility"]["object_id_source"], "obs/extra/obj_segmentation_id")
+            self.assertIn("x_max_exclusive", manifest["segmentation_visibility"]["bbox_xyxy"])
             self.assertFalse(manifest["eef_transition_local"]["controller_command"])
             with np.load(root / "derived" / "traj_0.npz") as labels:
                 self.assertEqual(labels["physical_contact"].tolist(), [[False], [True], [True]])
@@ -149,9 +151,13 @@ class PushCubeEORTTest(unittest.TestCase):
                 self.assertEqual(labels["object_mask_pixels"].tolist(), [[2], [0], [1]])
                 self.assertEqual(labels["object_visible"].tolist(), [[True], [False], [True]])
                 np.testing.assert_allclose(labels["object_visibility_fraction"][:, 0], [0.5, 0.0, 0.25])
+                self.assertEqual(labels["object_bbox_xyxy"].tolist(), [[0, 0, 2, 2], [0, 0, 0, 0], [0, 0, 1, 1]])
+                np.testing.assert_allclose(labels["object_mask_centroid_uv"], [[0.5, 0.5], [0, 0], [0, 0]])
                 self.assertEqual(labels["object_segdepth_valid"].tolist(), [[True], [False], [True]])
                 np.testing.assert_allclose(labels["object_segdepth_centroid_world"], [[0.5, 0.5, 1.0], [0, 0, 0], [0, 0, 1.0]])
                 self.assertEqual(labels["goal_mask_pixels"].tolist(), [[1], [2], [1]])
+                self.assertEqual(labels["goal_bbox_xyxy"].tolist(), [[1, 0, 2, 1], [0, 0, 2, 1], [1, 1, 2, 2]])
+                np.testing.assert_allclose(labels["goal_mask_centroid_uv"], [[1, 0], [0.5, 0], [1, 1]])
                 np.testing.assert_allclose(labels["eef_transition_local"][:, :6], 0.0)
                 np.testing.assert_allclose(labels["eef_transition_local"][:, 6], [0.0, 0.5, 1.0])
 

@@ -52,6 +52,8 @@ object_role                   : (N,)       # categorical: manipulated / target /
 object_valid                  : (T,N) bool
 object_visible                : (T,V,N) bool
 object_visibility_fraction    : (T,V,N,1)
+object_bbox_xyxy              : (T,V,N,4) # [x0,y0,x1,y1), oracle tracker supervision
+object_mask_centroid_uv       : (T,V,N,2) # [u,v], oracle tracker supervision
 object_segdepth_centroid_world: (T,N,3)   # oracle segmentation + metric depth 的可见表面几何 proxy
 object_segdepth_valid         : (T,N) bool
 ee_pose_task                  : (T,A,7)

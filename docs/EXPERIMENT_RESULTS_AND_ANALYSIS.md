@@ -144,3 +144,10 @@
 - 设置：对上述高分辨率 smoke 运行既有 `convert_maniskill_eort_to_lerobot.py`，再以 `maniskill_eort_push_cube_oracle_lerobot` mixture 和既有 data config 读取一个 DiT4DiT sample。
 - 结果：LeRobot `observation.images.front` metadata 为 `[256,256,3]`、20 FPS；有 71 行 Parquet 和 1 个 H.264 MP4。loader 成功初始化 dataset（长度 71），sample 的实际 `image` list 含一个 `(3,224,224)` tensor；state/action masks 同时生成。
 - 分析：高分辨率信息在数据层保留，训练 transform 在 encoder 前下采样为 224，不存在从 128 到 224 的伪信息增加。这个验证仅覆盖单条高分辨率 smoke；批量采集仍需峰值显存、视频 decode 吞吐和 object-pixel 分布 QA。
+
+### 2026-07-13 13:40:00 UTC — 2D tracker-label 导出验证
+
+- 设置：在 v2 sidecar 中从已有 raw segmentation actor-ID 计算 object/goal mask 的 bbox 与像素 centroid；不复制 mask，不改环境、物理或 raw HDF5。bbox 约定 `[x_min,y_min,x_max_exclusive,y_max_exclusive]`。
+- 合成验证：2×2 fixture 中多像素 object 得到 `[0,0,2,2]`、centroid `[0.5,0.5]`；完全遮挡帧保持全零 bbox/centroid 且 `visible=false`；单像素和 goal 的独立坐标也通过。
+- 真实验证：256×256 smoke 重派生输出 `object_bbox_xyxy(71,4)`、`object_mask_centroid_uv(71,2)`；bbox 宽 9–10 px、高 11–12 px，71/71 visible centroid 均在框内。
+- 分析：这些标签可训练 object detection、ROI/crop 或视觉 token 对齐，但依赖 simulator actor ID，不能作为部署期输入；真实 tracker 必须只读取 RGB-D 与标定，且在遮挡/ID-switch 上单独评估。
