@@ -91,3 +91,10 @@
 - 导出结果：LeRobot v2 写入一个 `(71,8)` state Parquet、一个 `(71,17)` current continuous object-condition Parquet 字段、一个 `(71,7)` observed-local-EEF-transition action 字段和一条 128×128、71 帧 H.264 MP4。
 - 逐元素验证：Parquet action 等于 NPZ `eef_transition_local`；17D condition 等于 `ee_to_object(3)+ee_to_object_rotvec(3)+object_to_goal(3)+object_linear_velocity(3)+object_angular_velocity(3)+robot_obj_contact_force_norm(1)+object_visibility_fraction(1)`；raw segmentation 重算的两个 pixel count 等于 NPZ QA 字段。`meta/modality.json` 不含 future 或 phase 字段，state gripper 保持零占位而非 action 回填。
 - 分析：ManiSkill 采集、object-centric NPZ 和 DiT4DiT v2 loader-format 之间的实际数据契约已贯通。此处的 object condition 是 simulator GT oracle，而非从 RGB/depth 估计的 object track；只覆盖一个无遮挡 PushCube episode，不能作为训练规模、遮挡鲁棒性或 sim2real 成功的证据。
+
+### 2026-07-13 — X-WAM/Tau/DreamDojo baseline readiness audit
+
+- X-WAM 本地源码明确支持每臂 8D proprio `xyz+wxyz+gripper`、每臂 7D local EEF action `Δxyz+Δaxisangle+gripper`，以 mask 表达缺失右臂，并且读取 RGB-D 多视图。这是当前唯一与 Franka 单臂、Piper 双臂目标契约直接同构的候选。
+- 但 X-WAM 本机没有 `checkpoints/`；README 的公开权重仍需实际下载、加载和 forward 验证。因此当前只能将它列为 DiT4DiT oracle gate 之后的主线候选，不可报告为可用 pretrained baseline。
+- τ₀-WM 当前正在以双臂预训练接口运行；其 action/proprio 语义与 14D/16D 契约不一致，适合迁移消融而不是首个统一策略。DreamDojo 是 world-model/trajectory 候选，未提供可直接比较的 action policy 接口。
+- 决策不变：ManiSkill 是新的 object-centric 数据与 GT 评测主场，DiT4DiT 先回答“当前 object information 是否改善 action”；仅在此 gate 有闭环收益后，再投入 X-WAM 数据转换、权重加载和 token fusion。

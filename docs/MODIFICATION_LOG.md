@@ -89,3 +89,9 @@
 - 精确变更：未修改 ManiSkill 代码或物理配置；显式选择 GPU 4，以独立时间戳目录采集 `NUM_TRAJ=1`，并将同一 raw HDF5 与 derived NPZ 导出为 DiT4DiT LeRobot v2 Parquet/MP4/meta。
 - 证据：1/1 成功、`T=71`；raw RGB/segmentation 为 `(72,128,128,3)/(72,128,128,1)`，derived `eef_transition_local` 为 `(71,7)`，LeRobot Parquet state/current-object-condition/action 分别为 `(71,8)/(71,17)/(71,7)`。导出 action 与 derived transition、17D condition 与 derived 当前连续字段均逐元素一致；H.264 MP4 可解码为 71 帧。
 - 因果边界：LeRobot policy fields 不含 future delta/mask、phase、segmentation ID 或 bool contact；夹爪 state 不从 action target 回填，避免监督泄漏。该数据仍是 simulator oracle，不能用于真实部署结论。
+
+## 2026-07-13 12:50:00 UTC — baseline readiness 审计
+
+- 原因：需要按本地可运行的接口而非论文印象决定 DiT4DiT、τ₀-WM、DreamDojo 与 X-WAM 的分工。
+- 精确变更：未改模型或数据；审计 X-WAM 数据加载器、模型配置和本地权重目录，并把 16D/14D 双臂 mask 接口、无本地 checkpoint 的事实和后续门槛写入跨机器人契约与风险台账。
+- 决策：保持 DiT4DiT 为首个 ManiSkill oracle 因果 gate；X-WAM 为在 checkpoint 验证后的主线候选；τ₀-WM 仅作预训练迁移消融，DreamDojo 仅作未来状态/轨迹辅助。

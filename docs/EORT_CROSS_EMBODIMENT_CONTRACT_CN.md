@@ -72,7 +72,7 @@ arm_present                   : (A,) bool
 ## 4. 模型路线
 
 1. **首个因果 gate：DiT4DiT。** 保持视觉和 action diffusion 主干不变，先比较 robot-only 与当前时刻 GT continuous object condition。现有 loader 可拼接具名 state key，但 RLBench 的旧 EORT config 会 q99-normalize `object_interaction_state`，不可复用到离散 phase；phase 必须暂时不输入，或新增离散 embedding 路径。只在 object condition 带来同数据、同训练预算、留出任务的闭环收益后，再接入预测 token。DiT4DiT 是最低风险的“对象信息是否有用”检验，不是最终跨机器人 backbone。
-2. **最终主线候选：X-WAM。** 它原生接受 RGB-D、多视图、8/16D EEF proprio 与 7/14D 单/双臂 action；推荐在上述 gate 通过后，将 object token 作为独立条件 token 流加入其 action/proprio fusion，而非把类别 phase 拼进连续 proprio。开始前必须取得、校验可用 checkpoint，并保留不加 token 的同数据基线。
+2. **最终主线候选：X-WAM。** 本地源码审计确认其 `RobotDataset` 固定为 16D proprio（每臂 `xyz+wxyz+gripper`）和 14D action（每臂 `Δxyz+Δaxisangle+gripper`），缺失右臂由 zero+mask 表示；因此它与 Franka/Piper 的目标契约直接对齐。它也原生读取多视图 RGB-D。当前本地 `checkpoints/` 不存在，README 指向外部预训练/后训练权重；在权重实际取得、checksum/加载可验证前，它只能是第二阶段候选，不能替代已可运行的 DiT4DiT gate。获得权重后，将 object token 作为独立条件 token 流加入 action/proprio fusion，而非把类别 phase 拼进连续 proprio，并保留不加 token 的同数据基线。
 3. **迁移消融：τ₀-WM。** 仅比较其预训练视频/action trunk 在统一动作适配器上的收益。20D 双臂相对 EEF-6D 与本契约不同，action input/output 层可能重初始化；必须报告 mismatch、冻结/微调范围与单臂占位策略。
 4. **后续辅助：DreamDojo。** 用于生成/筛选轨迹、学习对象未来状态或规划候选，不作为首个端到端 action policy；需要独立 action head 和动作执行评估才有价值。
 
