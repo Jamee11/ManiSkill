@@ -109,3 +109,11 @@
 - 精确变更：未改代码；调用 ManiSkill 官方 `replay_trajectory` 将现有 raw `pd_joint_pos` trajectory 转换保存为独立的 `pd_ee_delta_pose` HDF5。
 - 验证：converted action `(71,7)`、observation 72 帧、最终 success=True，metadata target control mode 为 `pd_ee_delta_pose`。
 - 边界：结果是归一化 root-frame Panda command；不替代 local canonical action、Piper adapter 或真机 replay 验证。
+
+## 2026-07-13 13:18:15 UTC — v2 十轨迹 pilot 与训练格式完整性 QA
+
+- 原因：单条成功轨迹只能证明 schema 对齐，不能证明采集、可见率统计和专用 LeRobot 出口能跨多条 episode 保持完整。
+- 精确变更：未修改 ManiSkill 物理、环境、控制或模型代码；在用户指定可用空间的 GPU 4 上，以新的不可覆盖目录采集 10 条原生 `PushCubeEORT-v1` motion-planning 轨迹，派生 v2 sidecar，并导出既有 DiT4DiT LeRobot v2 格式。
+- 证据：10/10 最终 success，合计 686 action-aligned frames；10 个 Parquet、10 个 H.264 128×128/20 FPS MP4 与 `meta/info.json` 的 10 episodes/686 frames 一致。逐轨迹长度为 `[71,72,64,74,66,77,62,69,63,68]`。
+- 质量结论：object/goal visibility 和 segmentation-depth valid 均为 1.0；object mask fraction 为 0.00098–0.00189，goal 为 0.02185–0.04120；segmentation-depth surface-centroid error 的均值为 1.80 cm、p95 为 2.09 cm。真实接触帧 236；phase 计数为 approach=450、contact=7、moving-in-contact=229、goal=0。
+- 边界：全量可见和没有 goal phase 说明这只是“链路通畅”pilot，不是遮挡/终态分布覆盖，更不足以启动训练或形成 sim2real 结论。数据路径记录在实验分析中，二进制数据不提交 Git。

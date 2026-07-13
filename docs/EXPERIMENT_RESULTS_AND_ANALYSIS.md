@@ -112,3 +112,12 @@
 - 结果：converted trajectory action 为 `(71,7)`，observation 为 72 帧，最终 `success=True`。动作每维绝对最大值为 `[0.182812,0.027179,0.288201,0.008141,0.243892,0.017678,1.0]`；metadata 明确 target control mode 为 `pd_ee_delta_pose`。
 - 解释：这 7D 是 Panda controller 的归一化 root-frame delta command，不是从 TCP observation 差分得到的 `eef_transition_local`。官方 replay 成功证明 Panda source-action 到 EEF-controller 的 IK 转换可执行，但没有证明该 action 可直接发送给 Franka/Piper 真机，也没有证明 local-frame canonical action 的等价性。
 - 下一步：保留 converted HDF5 为 Panda controller-command reference；在 Piper 控制器/标定接口到位后，建立显式 task-frame adapter 和同样的 command replay check，禁止使用 observed transition 替代硬件命令。
+
+### 2026-07-13 13:18:15 UTC — PushCubeEORT-v1 v2 十轨迹 pilot 与 LeRobot 完整性 QA
+
+- 设置：用户确认 GPU 4 有余量后，运行现有原生 motion-planning 收集脚本，CPU PhysX + GPU renderer；输出使用新目录 `/remote-home/jinminghao/datasets/maniskill_push_cube_objectcentric_v2_pilot10_20260713T130957Z`。对同一 raw HDF5 与 derived directory 运行专用 DiT4DiT exporter。
+- 采集结果：10/10 最终 success，0 个失败规划；action 长度为 `[71,72,64,74,66,77,62,69,63,68]`，共 686 steps。GPU renderer 在 GPU 4 上完成，未发生 OOM；这只说明本次时段该设备足够，不改变“需显式选择 renderer GPU”的运行约束。
+- oracle/视觉 QA：每一帧 object 与 goal 均可见（686/686）；object visibility fraction 范围 0.0009766–0.0018921，goal 为 0.0218506–0.0411987。object segmentation-depth centroid 在 686/686 帧有效；相对于 simulator object center 的 error 为 1.17–2.23 cm，均值 1.80 cm，p95 2.09 cm。它依然是 oracle actor mask 加 RGB-D 回投的可见表面中心，不是视觉 tracker 的成功率。
+- interaction/未来标签 QA：physical-contact 为 236 帧；phase counts 为 approach=450、contact=7、moving-in-contact=229、goal=0。未来有效数为 horizon 1/4/8 分别 686/656/616。`goal=0` 是当前 rollout 未达到基于当前定义的 phase 终态，不是 final success 的否定，二者应保持分开解释。
+- LeRobot 出口 QA：`meta/info.json` 报告 10 episodes、686 frames；磁盘上有 10 个 episode Parquet 与 10 个 H.264 MP4，行数总和 686，与 metadata 一致。Parquet 仍是每步 `state(8)`、`oracle_current(17)`、`observation_valid(1)`、observed-local `action(7)`；视频 feature 为 `observation.images.front`、128×128、20 FPS。该验证证明数据文件的数目与时序总长完整，不表示 DiT4DiT 已训练或闭环成功。
+- 分析：这完成了“ManiSkill raw → v2 sidecar → LeRobot v2”多轨迹数据链路 gate。当前分布几乎没有遮挡且 object 像素非常小，故下一次采集必须先定义 camera/遮挡、漏检、ID-switch、深度噪声及 goal-phase 的覆盖计划；不能仅增加相同的无遮挡轨迹数量。另一次在本会话的 DiT4DiT import 在模块初始化后无 traceback 提前退出，尚未产生 dataset sample，因而 loader 复验仍是待办，不能用它否定已通过的 exporter 文件 QA。
