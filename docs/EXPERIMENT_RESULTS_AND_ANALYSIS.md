@@ -163,3 +163,10 @@
 - 设置：新增 `PushCubeEORTOccluded-v1`，以 0.5 probability 放置无 collision、kinematic 的不透明薄板；薄板只改变 render/segmentation/depth，不改变 contact、动力学、planner 或 success。采集 4 条 256×256 CPU-PhysX/GPU-render trajectories。
 - 结果：4/4 final success。raw `occluder_active(T+1,1)` 在每条内恒定，sidecar action-aligned `occluder_active(T,1)` 逐元素相等；两类都出现。`active=true` 的三条 object-visible rate 为 22/71=31.0%、72/72=100%、7/74=9.5%；`active=false` 的一条为 64/64=100%。
 - 分析：occluder presence 不是 object invisibility 的代理：object 可能从板旁/前方移动出来。因此训练与评测应以 `object_visible`/bbox-valid 分层，`occluder_active` 只用于诊断 sim condition，必须从模型输入中排除。该简单几何遮挡不代表真实手、杂物或 detector failure，后续仍需 ID-switch 与深度/光照噪声实验。
+
+### 2026-07-13 14:15:43 UTC — 256×256 三分支 LeRobot 导出与训练-loader gate
+
+- 设置：GPU 4、CPU PhysX + GPU renderer、原生 Panda motion planner；固定、camera-random 和 visual-occlusion EORT 环境各采 10 条成功轨迹，再以共享 exporter 写入 `/remote-home/jinminghao/datasets/maniskill_push_cube_eort_256_splits_lerobot_20260713T140202Z`。DiT4DiT 以新 `maniskill_eort_push_cube_256_splits_lerobot` equal-weight mixture 读取该根目录。
+- 采集/导出结果：三个 split 均为 10/10 final success、686 action-aligned frames、10 Parquet、10 MP4；LeRobot metadata 的 source video feature 均为 `[256,256,3]`。fixed 和 camera-random split 均为 0 invalid frame。occlusion split 为 163/686 invalid object frames，所有这 163 行的 17D `oracle_current` 已验证为全零；因此不可见时没有连续 simulator geometry 泄漏。
+- 训练接口结果：真实 loader 初始化的 component lengths 为 `[686,686,686]`，总 mixture epoch 长度 2,058；采样输出保持 `state (1,64)`、`action (8,32)`、`image[0] (3,224,224)`。最后一个形状是从 retained 256px raw image 下采样而来，非 128px 上采样。
+- 分析与下一步：这闭合了三分支的 raw collection → v2 sidecar → LeRobot → training loader 验证，但样本仅 30 条单任务 rollout，不能支持训练规模、object tracker 或 sim2real 结论。下一步应在更大规模分布上加入真实/合成 detection dropout、ID-switch、深度与标定误差，并用 predicted RGB-D track、robot-only 和 oracle 三个闭环条件进行同预算比较。

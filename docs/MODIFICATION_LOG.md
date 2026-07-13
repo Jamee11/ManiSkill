@@ -159,3 +159,11 @@
 - 原因：camera shift 不能产生 object 的漏失/部分可见状态，无法评估 tracker 在遮挡下的 valid-mask 行为。
 - 精确变更：新增独立 `PushCubeEORTOccluded-v1`。它以 0.5 概率放置无碰撞、kinematic、不透明薄板于相机与工作区之间；原物理、motion planner 和 task success 不变。raw/sidecar 新增 `occluder_active(T+1/T,1)`，manifest 显式 `policy_input=false`。Panda runner 与 v2 deriver 允许该环境。
 - 验证：GPU 4 4/4 success；active/inactive 均出现。active episode 的 object visible fraction 为 9.5%、31.0%、100%，inactive 为 100%，表明该 split 提供实际部分/完全遮挡候选但必须按最终 `object_visible` 而非 active flag 分层。synthetic test 覆盖 flag 的 T+1→T 对齐和 manifest 禁入 policy。
+
+## 2026-07-13 14:15:43 UTC — 256×256 EORT 三分支数据集与 DiT4DiT mixture 验证
+
+- 原因：单条 high-resolution smoke 及单一无障碍相机视角不足以验证 object-centric 链路在 viewpoint shift 和自然不可见帧下的导出契约；训练端也需要显式、可复现地同时读取三种条件。
+- 精确变更：未修改 ManiSkill 环境、物理、控制或标签代码；在 GPU 4 上以 CPU PhysX + GPU renderer 分别采集固定相机、reset-static 相机随机化和 visual-only occlusion 三个 `NUM_TRAJ=10` raw/derived split。使用已有 LeRobot exporter 导出至共享根目录，并在 DiT4DiT 添加等权 named mixture `maniskill_eort_push_cube_256_splits_lerobot`。保留全部旧输出，不覆盖 128px pilot。
+- 数据与 QA：三个 split 各为 10/10 native-success episodes、686 action-aligned frames、10 个 Parquet 和 10 个 MP4；stored front video feature 都是 `[256,256,3]`。occlusion split 有 163/686 `object_visible=false` 帧，逐帧检验这些帧的 17D continuous oracle condition 均为零；fixed/camera-random split 无不可见帧。camera split 的外参在 episode 内静态、跨 episode 变化；occluder flag 仍只作诊断而不作模型输入。
+- 训练接口验证：真实 DiT4DiT loader 初始化三组长度 `[686,686,686]`，mixture epoch 为 2,058 frames，并输出 `state (1,64)`、`action (8,32)` 和由 256px 下采样的 `image (3,224,224)`。
+- 边界：这只是 30 条 PushCube 的数据/加载器 gate，visible-frame geometry 仍是 simulator oracle upper bound，未训练或闭环评测；不得据此声称 tracker、sim2real 或遮挡鲁棒性。
