@@ -97,6 +97,7 @@ class PushCubeEORTTest(unittest.TestCase):
                 )
                 extra.create_dataset("obj_segmentation_id", data=np.full((4, 1), 7, dtype=np.int32))
                 extra.create_dataset("goal_segmentation_id", data=np.full((4, 1), 9, dtype=np.int32))
+                extra.create_dataset("occluder_active", data=np.array([[False], [True], [True], [True]]))
                 camera = obs.create_group("sensor_data").create_group("base_camera")
                 camera.create_dataset("rgb", data=np.zeros((4, 2, 2, 3), dtype=np.uint8))
                 camera.create_dataset("depth", data=np.full((4, 2, 2, 1), 1000, dtype=np.uint16))
@@ -135,6 +136,7 @@ class PushCubeEORTTest(unittest.TestCase):
             self.assertEqual(manifest["push_interaction_phase_labels"]["3"], "native_task_success")
             self.assertEqual(manifest["segmentation_visibility"]["object_id_source"], "obs/extra/obj_segmentation_id")
             self.assertIn("x_max_exclusive", manifest["segmentation_visibility"]["bbox_xyxy"])
+            self.assertFalse(manifest["occluder_active"]["policy_input"])
             self.assertFalse(manifest["eef_transition_local"]["controller_command"])
             with np.load(root / "derived" / "traj_0.npz") as labels:
                 self.assertEqual(labels["physical_contact"].tolist(), [[False], [True], [True]])
@@ -148,6 +150,7 @@ class PushCubeEORTTest(unittest.TestCase):
                 )
                 self.assertEqual(labels["object_segmentation_id"].tolist(), [7])
                 self.assertEqual(labels["goal_segmentation_id"].tolist(), [9])
+                self.assertEqual(labels["occluder_active"].tolist(), [[False], [True], [True]])
                 self.assertEqual(labels["object_mask_pixels"].tolist(), [[2], [0], [1]])
                 self.assertEqual(labels["object_visible"].tolist(), [[True], [False], [True]])
                 np.testing.assert_allclose(labels["object_visibility_fraction"][:, 0], [0.5, 0.0, 0.25])
@@ -182,13 +185,16 @@ class PushCubeEORTTest(unittest.TestCase):
         from mani_skill.envs.tasks.tabletop.push_cube_eort import (
             PushCubeEORTCameraRandEnv,
             PushCubeEORTEnv,
+            PushCubeEORTOccludedEnv,
         )
 
         self.assertEqual(gym.spec("PushCubeEORT-v1").id, "PushCubeEORT-v1")
         self.assertEqual(gym.spec("PushCubeEORTCameraRand-v1").id, "PushCubeEORTCameraRand-v1")
+        self.assertEqual(gym.spec("PushCubeEORTOccluded-v1").id, "PushCubeEORTOccluded-v1")
         self.assertEqual(PushCubeEORTEnv.SUPPORTED_ROBOTS, ["panda"])
         self.assertEqual(PushCubeEORTEnv.EORT_CAMERA_RESOLUTION, 256)
         self.assertEqual(PushCubeEORTCameraRandEnv.CAMERA_EYE_JITTER, (0.08, 0.08, 0.05))
+        self.assertEqual(PushCubeEORTOccludedEnv.OCCLUDER_PROBABILITY, 0.5)
 
 
 if __name__ == "__main__":

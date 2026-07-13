@@ -13,7 +13,9 @@ import sapien
 
 from mani_skill.envs.tasks.tabletop.push_cube import PushCubeEnv
 from mani_skill.utils import sapien_utils
+from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
+from mani_skill.utils.structs.pose import Pose
 
 
 @register_env("PushCubeEORT-v1", max_episode_steps=50)
@@ -89,3 +91,41 @@ class PushCubeEORTCameraRandEnv(PushCubeEORTEnv):
                 torch.rand((count, 3), device=self.device) - 0.5
             ) * torch.tensor(self.CAMERA_TARGET_JITTER, device=self.device)
             self.camera_mount.set_pose(sapien_utils.look_at(eye=eye, target=target))
+
+
+@register_env("PushCubeEORTOccluded-v1", max_episode_steps=50)
+class PushCubeEORTOccludedEnv(PushCubeEORTEnv):
+    """EORT PushCube with a visual-only static occluder in half of episodes."""
+
+    OCCLUDER_PROBABILITY = 0.5
+    OCCLUDER_POSE = (0.1, 0.0, 0.35)
+    HIDDEN_POSE = (0.0, 0.0, -1.0)
+
+    def _load_scene(self, options: dict):
+        super()._load_scene(options)
+        self.occluder = actors.build_box(
+            self.scene,
+            half_sizes=(0.02, 0.18, 0.14),
+            color=(0.15, 0.15, 0.15, 1.0),
+            name="eort_visual_occluder",
+            body_type="kinematic",
+            add_collision=False,
+            initial_pose=sapien.Pose(p=self.HIDDEN_POSE),
+        )
+
+    def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
+        super()._initialize_episode(env_idx, options)
+        with torch.device(self.device):
+            count = len(env_idx)
+            active = torch.rand((count,), device=self.device) < self.OCCLUDER_PROBABILITY
+            positions = torch.tensor(self.OCCLUDER_POSE, device=self.device).repeat(count, 1)
+            positions[~active] = torch.tensor(self.HIDDEN_POSE, device=self.device)
+            self.occluder.set_pose(Pose.create_from_pq(p=positions))
+            if not hasattr(self, "_occluder_active"):
+                self._occluder_active = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+            self._occluder_active[env_idx] = active
+
+    def _get_obs_extra(self, info: dict) -> dict[str, Any]:
+        obs = super()._get_obs_extra(info)
+        obs["occluder_active"] = self._occluder_active[:, None]
+        return obs

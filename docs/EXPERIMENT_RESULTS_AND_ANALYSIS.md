@@ -157,3 +157,9 @@
 - 设置：新增 `PushCubeEORTCameraRand-v1`；相机使用 kinematic mount，在 reset 时对默认 eye `[0.3,0,0.6]` 作最大 `[±0.04,±0.04,±0.025]` m 扰动、target 作最大 `[±0.015,±0.015,±0.01]` m 扰动。motion planner、CPU PhysX、GPU renderer、256×256 observation 与其他 EORT 标签不变。
 - 结果：GPU 4 上 `NUM_TRAJ=2`，2/2 final success；trajectory 长度 71/72 steps、RGB `(72/73,256,256,3)`。raw `extrinsic_cv` 在每条 trajectory 的所有 observation 完全相等，而两条的首帧 extrinsic 不相等；v2 sidecar 成功导出。
 - 分析：这提供真实相机固定、跨 episode viewpoint shift 的最小 sim2real camera split。它不覆盖遮挡、材质/光照、相机内参或真实噪声，不能宣称视觉鲁棒；这些应作为独立因素加入，而不是把相机每帧随机化。
+
+### 2026-07-13 13:54:45 UTC — visual-only occlusion smoke
+
+- 设置：新增 `PushCubeEORTOccluded-v1`，以 0.5 probability 放置无 collision、kinematic 的不透明薄板；薄板只改变 render/segmentation/depth，不改变 contact、动力学、planner 或 success。采集 4 条 256×256 CPU-PhysX/GPU-render trajectories。
+- 结果：4/4 final success。raw `occluder_active(T+1,1)` 在每条内恒定，sidecar action-aligned `occluder_active(T,1)` 逐元素相等；两类都出现。`active=true` 的三条 object-visible rate 为 22/71=31.0%、72/72=100%、7/74=9.5%；`active=false` 的一条为 64/64=100%。
+- 分析：occluder presence 不是 object invisibility 的代理：object 可能从板旁/前方移动出来。因此训练与评测应以 `object_visible`/bbox-valid 分层，`occluder_active` 只用于诊断 sim condition，必须从模型输入中排除。该简单几何遮挡不代表真实手、杂物或 detector failure，后续仍需 ID-switch 与深度/光照噪声实验。

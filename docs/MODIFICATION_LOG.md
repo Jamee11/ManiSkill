@@ -153,3 +153,9 @@
 - 原因：固定相机的无障碍 PushCube 数据无法检验 tracker 是否依赖单一外参；逐控制步相机抖动又不符合真实静态外部相机。
 - 精确变更：新增独立 `PushCubeEORTCameraRand-v1`。它复用 PushCubeEORT 的物理、奖励、256×256 sensor 与 EORT fields，仅把 `base_camera` 挂到 kinematic mount，并在 reset 时对 eye/target 作有限均匀扰动；同一 episode 内 pose 不变。Panda motion-planning runner 和 collection script 接受该 env ID；v2 deriver 显式允许两个 EORT env ID。
 - 验证：GPU 4 上 2/2 原生 motion-planning 成功、raw RGB 均为 256×256；逐 trajectory 断言 extrinsic 在 episode 内恒定且两条之间不同。未增加物理遮挡物、纹理或逐帧 camera motion。
+
+## 2026-07-13 13:54:45 UTC — visual-only occlusion EORT split
+
+- 原因：camera shift 不能产生 object 的漏失/部分可见状态，无法评估 tracker 在遮挡下的 valid-mask 行为。
+- 精确变更：新增独立 `PushCubeEORTOccluded-v1`。它以 0.5 概率放置无碰撞、kinematic、不透明薄板于相机与工作区之间；原物理、motion planner 和 task success 不变。raw/sidecar 新增 `occluder_active(T+1/T,1)`，manifest 显式 `policy_input=false`。Panda runner 与 v2 deriver 允许该环境。
+- 验证：GPU 4 4/4 success；active/inactive 均出现。active episode 的 object visible fraction 为 9.5%、31.0%、100%，inactive 为 100%，表明该 split 提供实际部分/完全遮挡候选但必须按最终 `object_visible` 而非 active flag 分层。synthetic test 覆盖 flag 的 T+1→T 对齐和 manifest 禁入 policy。

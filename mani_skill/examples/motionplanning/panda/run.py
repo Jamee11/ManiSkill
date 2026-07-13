@@ -20,6 +20,7 @@ MP_SOLUTIONS = {
     "PushCube-v1": solvePushCube,
     "PushCubeEORT-v1": solvePushCube,
     "PushCubeEORTCameraRand-v1": solvePushCube,
+    "PushCubeEORTOccluded-v1": solvePushCube,
     "PullCubeTool-v1": solvePullCubeTool,
     "LiftPegUpright-v1": solveLiftPegUpright,
     "PullCube-v1": solvePullCube,

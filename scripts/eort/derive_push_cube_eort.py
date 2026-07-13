@@ -15,7 +15,11 @@ import numpy as np
 SCHEMA_VERSION = "maniskill_push_cube_eort_oracle_v1"
 OBJECTCENTRIC_V2_SCHEMA_VERSION = "maniskill_push_cube_objectcentric_oracle_v2"
 OBJECTCENTRIC_V2_ENV_ID = "PushCubeEORT-v1"
-OBJECTCENTRIC_V2_ENV_IDS = (OBJECTCENTRIC_V2_ENV_ID, "PushCubeEORTCameraRand-v1")
+OBJECTCENTRIC_V2_ENV_IDS = (
+    OBJECTCENTRIC_V2_ENV_ID,
+    "PushCubeEORTCameraRand-v1",
+    "PushCubeEORTOccluded-v1",
+)
 DEFAULT_FUTURE_HORIZONS = (1, 4, 8)
 
 
@@ -50,6 +54,15 @@ def _static_segmentation_id(group: h5py.Group, path: str, steps: int) -> int:
     if np.any(array <= 0) or not np.all(array == array[0, 0]):
         raise ValueError(f"{group.name}/{path} must contain one positive static actor ID")
     return int(array[0, 0])
+
+
+def _optional_bool_observation(group: h5py.Group, path: str, steps: int) -> np.ndarray | None:
+    if path not in group:
+        return None
+    array = np.asarray(group[path], dtype=bool)
+    if array.shape != (steps + 1, 1):
+        raise ValueError(f"{group.name}/{path} must have shape {(steps + 1, 1)}, got {array.shape}")
+    return array[:-1]
 
 
 def _segmentation_visibility(
@@ -307,6 +320,7 @@ def derive_trajectory_objectcentric_v2(
         group, "obs/extra/robot_obj_contact_force_norm", steps, 1
     )
     extra = group["obs/extra"]
+    occluder_active = _optional_bool_observation(group, "obs/extra/occluder_active", steps)
     has_object_id = "obj_segmentation_id" in extra
     has_goal_id = "goal_segmentation_id" in extra
     if has_object_id != has_goal_id:
@@ -382,6 +396,8 @@ def derive_trajectory_objectcentric_v2(
         }
     )
     arrays.update(visibility_arrays)
+    if occluder_active is not None:
+        arrays["occluder_active"] = occluder_active
     return arrays
 
 
@@ -472,6 +488,12 @@ def derive_dataset(
                     "bbox_xyxy": "[x_min,y_min,x_max_exclusive,y_max_exclusive] pixels; all zeros when invisible",
                     "mask_centroid_uv": "mean [u,v] mask pixel coordinate; all zeros when invisible",
                     "segdepth_centroid": "segmentation actor pixels back-projected from millimeter depth with intrinsic_cv/extrinsic_cv; oracle actor ID only",
+                }
+            if "occluder_active" in arrays:
+                records[-1]["occluder_active"] = {
+                    "source": "obs/extra/occluder_active",
+                    "policy_input": False,
+                    "meaning": "visual-only occluder is present for this observation",
                 }
 
     manifest_path = output_dir / "manifest.jsonl"
