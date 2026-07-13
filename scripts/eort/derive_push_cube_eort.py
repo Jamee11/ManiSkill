@@ -99,6 +99,44 @@ def _relative_rotation_rotvec(
     return (axis * angle[:, None]).astype(np.float32)
 
 
+def _local_eef_transition(tcp_pose_wxyz: np.ndarray, gripper_action: np.ndarray) -> np.ndarray:
+    """Return observed next-EEF motion in the current EEF frame, not a command."""
+    reference_quat = _normalized_quaternion_wxyz(
+        tcp_pose_wxyz[:-1, 3:], "TCP reference quaternion"
+    )
+    target_quat = _normalized_quaternion_wxyz(
+        tcp_pose_wxyz[1:, 3:], "TCP target quaternion"
+    )
+    world_delta = tcp_pose_wxyz[1:, :3] - tcp_pose_wxyz[:-1, :3]
+    w = reference_quat[:, :1]
+    xyz = reference_quat[:, 1:]
+    local_delta = (
+        world_delta
+        + 2 * np.cross(xyz, np.cross(xyz, world_delta))
+        - 2 * w * np.cross(xyz, world_delta)
+    )
+    rw, rx, ry, rz = reference_quat.T
+    tw, tx, ty, tz = target_quat.T
+    relative_quat = np.stack(
+        (
+            rw * tw + rx * tx + ry * ty + rz * tz,
+            rw * tx - rx * tw - ry * tz + rz * ty,
+            rw * ty + rx * tz - ry * tw - rz * tx,
+            rw * tz - rx * ty + ry * tx - rz * tw,
+        ),
+        axis=1,
+    )
+    local_rotvec = _relative_rotation_rotvec(
+        np.tile([1.0, 0.0, 0.0, 0.0], (len(relative_quat), 1)), relative_quat
+    )
+    gripper_open_fraction = (gripper_action[:, None] + 1.0) / 2.0
+    if not np.isfinite(local_delta).all() or not np.isfinite(gripper_open_fraction).all():
+        raise ValueError("EEF transition contains non-finite values")
+    return np.concatenate(
+        (local_delta, local_rotvec, gripper_open_fraction), axis=1
+    ).astype(np.float32)
+
+
 def _future_object_transitions(
     object_pose_wxyz: np.ndarray, steps: int, horizons: tuple[int, ...]
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -203,6 +241,8 @@ def derive_trajectory_objectcentric_v2(
 ) -> dict[str, np.ndarray]:
     arrays = derive_trajectory(group, camera)
     steps = len(arrays["action"])
+    if arrays["action"].shape[1] != 8 or np.any(np.abs(arrays["action"][:, 7]) > 1):
+        raise ValueError(f"{group.name} requires Panda (T,8) actions with gripper in [-1,1]")
     tcp_pose = _finite_array(group, "obs/extra/tcp_pose", steps, 7)
     object_pose = _finite_array(group, "obs/extra/obj_pose", steps, 7)
     object_linear_velocity = _finite_array(
@@ -262,6 +302,9 @@ def derive_trajectory_objectcentric_v2(
         {
             "object_linear_velocity": object_linear_velocity[:-1],
             "object_angular_velocity": object_angular_velocity[:-1],
+            "eef_transition_local": _local_eef_transition(
+                tcp_pose, arrays["action"][:, 7]
+            ),
             "robot_obj_contact_force": contact_force,
             "robot_obj_contact_force_norm": robot_obj_contact_force_norm[:-1],
             "physical_contact": physical_contact[:, None],
@@ -351,6 +394,11 @@ def derive_dataset(
                         "3": "goal_reached_after_contact",
                     },
                     "future_horizons_steps": list(future_horizons),
+                    "eef_transition_local": {
+                        "source": "observed tcp_pose[t:t+1] plus raw gripper action",
+                        "frame": "current end-effector local frame",
+                        "controller_command": False,
+                    },
                 }
             )
             if "object_visible" in arrays:

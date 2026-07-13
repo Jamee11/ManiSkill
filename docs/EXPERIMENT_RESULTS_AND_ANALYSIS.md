@@ -75,5 +75,11 @@
 ### 2026-07-13 12:15:20 UTC — 跨机器人 EEF transition 可行性审计
 
 - 设置：只读计算同一条成功 HDF5 的相邻 TCP pose 相对变化，平移在当前 EEF 局部坐标系表达；不写入数据集。
-- 结果：得到有限的 `(71,3)` local translation transition，逐维最大绝对值为 `[0.00875, 0.00372, 0.03416]` m。raw 仍为 `(71,8)` Panda joint target；夹爪维恒为 `-1`，对应统一 open fraction `0`。
+- 结果：以验证过的逆旋转公式重算，得到有限的 `(71,3)` local translation transition，逐维最大绝对值为 `[0.008741, 0.000735, 0.011376]` m。raw 仍为 `(71,8)` Panda joint target；夹爪维恒为 `-1`，对应统一 open fraction `0`。
 - 分析：可以从 `T+1` TCP pose 稳定导出 observation transition，但它是实际状态转移，不是 planner 的原始控制命令。任何将它用于 DiT4DiT/X-WAM action supervision 的实验必须显式命名为 transition-target，并另做 controller replay 评估。
+
+### 2026-07-13 12:22:41 UTC — v2 EEF transition 导出验证
+
+- 设置：新增 `eef_transition_local` 后，在 GPU 4 以独立输出目录运行 `NUM_TRAJ=1` 完整采集、派生与 manifest 校验。
+- 结果：1/1 成功、`T=71`；NPZ 的 `eef_transition_local` 为有限 `(71,7)`，前三维为当前 EEF frame 的平移，后三个姿态维为 local rotation-vector，末维逐元素等于 `(raw_action[:,7]+1)/2`。六个运动维最大绝对值为 `[0.008741,0.000735,0.011376,0.000220,0.002282,0.000484]`。
+- 语义：manifest 明确 `controller_command=false`。这条标签可用于 observed-transition/dynamics 或受限的 action-target 研究；它不是 Panda joint command 的跨机器人替代品，未通过 controller replay 前不得用于真机执行结论。

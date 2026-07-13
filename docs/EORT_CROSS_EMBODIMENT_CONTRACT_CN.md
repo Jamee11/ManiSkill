@@ -65,6 +65,8 @@ arm_present                   : (A,) bool
 
 `interaction_phase`、role、valid、visible、arm-present 是离散 token/mask，必须作为 embedding 或 mask 处理；不能 q99 连续归一化。连续 pose/velocity/force/future delta 只用训练集统计量归一化。当前 PushCube v2 是该契约的一个 `A=1,N=1,G=1,H=3` 子集；已持久化 object/goal actor ID 并导出 object/goal visibility fraction。它仍未覆盖多 object、遮挡或真实感知 ID 管理。
 
+当前 v2 也导出 `eef_transition_local(T,7)`：当前 EEF frame 的 observed `Δxyz + Δrotvec` 加 `[0,1]` gripper open fraction。它保留了过渡语义，但 manifest 明确它不是 `canonical_action_cmd`；不可跳过 controller replay 而把它用于真机命令。
+
 **因果边界：** `future_object_delta` 是时刻 `t` 之后的真值，不能作为 `t` 的可部署 action-policy 输入；它只能作为 object dynamics 的辅助预测目标。首个 GT oracle action gate 只可使用当前时刻可得的 pose、relative geometry、velocity、visibility 与当前接触状态。若实验额外喂入 future GT，必须显式标为不可部署的预测上界，不能与真实 sim2real 条件比较。
 
 ## 4. 模型路线

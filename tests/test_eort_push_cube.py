@@ -66,7 +66,9 @@ class PushCubeEORTTest(unittest.TestCase):
             )
             with h5py.File(trajectory, "w") as file:
                 group = file.create_group("traj_0")
-                group.create_dataset("actions", data=np.arange(6, dtype=np.float32).reshape(3, 2))
+                actions = np.zeros((3, 8), dtype=np.float32)
+                actions[:, 7] = [-1, 0, 1]
+                group.create_dataset("actions", data=actions)
                 group.create_dataset("success", data=np.array([False, False, True]))
                 obs = group.create_group("obs")
                 extra = obs.create_group("extra")
@@ -122,6 +124,7 @@ class PushCubeEORTTest(unittest.TestCase):
             self.assertEqual(manifest["physical_contact"]["source"], "robot_obj_contact_force_norm")
             self.assertEqual(manifest["push_interaction_phase_labels"]["2"], "measured_contact_while_object_moves")
             self.assertEqual(manifest["segmentation_visibility"]["object_id_source"], "obs/extra/obj_segmentation_id")
+            self.assertFalse(manifest["eef_transition_local"]["controller_command"])
             with np.load(root / "derived" / "traj_0.npz") as labels:
                 self.assertEqual(labels["physical_contact"].tolist(), [[False], [True], [True]])
                 self.assertEqual(labels["push_interaction_phase"].tolist(), [[0], [2], [2]])
@@ -138,6 +141,23 @@ class PushCubeEORTTest(unittest.TestCase):
                 self.assertEqual(labels["object_visible"].tolist(), [[True], [False], [True]])
                 np.testing.assert_allclose(labels["object_visibility_fraction"][:, 0], [0.5, 0.0, 0.25])
                 self.assertEqual(labels["goal_mask_pixels"].tolist(), [[1], [2], [1]])
+                np.testing.assert_allclose(labels["eef_transition_local"][:, :6], 0.0)
+                np.testing.assert_allclose(labels["eef_transition_local"][:, 6], [0.0, 0.5, 1.0])
+
+    def test_local_eef_transition_uses_current_eef_frame(self):
+        module = load_module()
+        quarter_turn = np.sqrt(0.5)
+        tcp_pose = np.array(
+            [
+                [0, 0, 0, quarter_turn, 0, 0, quarter_turn],
+                [0, 1, 0, 0, 0, 0, 1],
+            ],
+            dtype=np.float32,
+        )
+        transition = module._local_eef_transition(tcp_pose, np.array([-1], dtype=np.float32))
+        np.testing.assert_allclose(transition[0, :3], [1, 0, 0], atol=1e-6)
+        np.testing.assert_allclose(transition[0, 3:6], [0, 0, np.pi / 2], atol=1e-6)
+        self.assertEqual(transition[0, 6], 0.0)
 
     def test_objectcentric_task_is_registered_without_changing_pushcube(self):
         import gymnasium as gym

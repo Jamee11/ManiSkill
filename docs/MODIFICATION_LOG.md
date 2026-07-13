@@ -69,3 +69,10 @@
 - 原因：object future trajectory 是行动之后的真值；若直接输入 action policy，会产生未来泄露。另经 source audit 确认 DiT4DiT 现有 RLBench EORT config 将 interaction state 放入 q99 连续归一化路径。
 - 精确变更：更新跨机器人契约和风险台账，规定首个 action gate 仅使用当前可得 continuous object state；future trajectory 仅作辅助预测目标，离散 phase/visibility/role 需独立 embedding/mask 或暂不作为输入。
 - 明确不做：不修改 DiT4DiT、ManiSkill 训练/采集代码，也不宣称现有 RLBench proxy condition 可直接迁移。
+
+## 2026-07-13 12:22:41 UTC — v2 observed EEF transition
+
+- 原因：当前 raw `(T,8)` Panda joint target 无法作为跨 Franka/Piper 的统一 action，但 object-centric dynamics/action gate 仍需一个与 TCP 几何直接对齐的可审计目标。
+- 精确变更：v2 导出器新增 `eef_transition_local(T,7)`，从 `tcp_pose[t:t+1]` 用当前 EEF frame 的逆旋转计算 local `Δxyz + Δrotvec`，并将 raw gripper `[-1,1]` 转为 `[0,1]` open fraction。manifest 明确 `controller_command=false`。
+- 保留行为：不改变 raw `(T,8)` action 或把 transition 重命名为 command；v1 不受影响。
+- 验证：单元测试覆盖非平凡局部 frame 旋转和夹爪归一化；GPU 4 的完整 1/1 采集/派生结果有有限 `(71,7)` transition，且末维逐元素匹配 raw gripper 映射。
