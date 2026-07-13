@@ -93,10 +93,23 @@ class PushCubeEORTTest(unittest.TestCase):
                     "robot_obj_contact_force_norm",
                     data=np.array([[0], [2], [1], [0]], dtype=np.float32),
                 )
+                extra.create_dataset("obj_segmentation_id", data=np.full((4, 1), 7, dtype=np.int32))
+                extra.create_dataset("goal_segmentation_id", data=np.full((4, 1), 9, dtype=np.int32))
                 camera = obs.create_group("sensor_data").create_group("base_camera")
                 camera.create_dataset("rgb", data=np.zeros((4, 2, 2, 3), dtype=np.uint8))
                 camera.create_dataset("depth", data=np.zeros((4, 2, 2, 1), dtype=np.uint16))
-                camera.create_dataset("segmentation", data=np.zeros((4, 2, 2, 1), dtype=np.uint16))
+                camera.create_dataset(
+                    "segmentation",
+                    data=np.array(
+                        [
+                            [[[7], [9]], [[0], [7]]],
+                            [[[9], [9]], [[0], [0]]],
+                            [[[7], [0]], [[0], [9]]],
+                            [[[7], [0]], [[0], [9]]],
+                        ],
+                        dtype=np.int32,
+                    ),
+                )
 
             summary = module.derive_dataset(
                 trajectory,
@@ -108,6 +121,7 @@ class PushCubeEORTTest(unittest.TestCase):
             manifest = json.loads((root / "derived" / "manifest.jsonl").read_text())
             self.assertEqual(manifest["physical_contact"]["source"], "robot_obj_contact_force_norm")
             self.assertEqual(manifest["push_interaction_phase_labels"]["2"], "measured_contact_while_object_moves")
+            self.assertEqual(manifest["segmentation_visibility"]["object_id_source"], "obs/extra/obj_segmentation_id")
             with np.load(root / "derived" / "traj_0.npz") as labels:
                 self.assertEqual(labels["physical_contact"].tolist(), [[False], [True], [True]])
                 self.assertEqual(labels["push_interaction_phase"].tolist(), [[0], [2], [2]])
@@ -118,6 +132,12 @@ class PushCubeEORTTest(unittest.TestCase):
                 np.testing.assert_allclose(
                     labels["ee_to_object_rotvec"][1], [0.0, 0.0, np.pi / 2], atol=1e-6
                 )
+                self.assertEqual(labels["object_segmentation_id"].tolist(), [7])
+                self.assertEqual(labels["goal_segmentation_id"].tolist(), [9])
+                self.assertEqual(labels["object_mask_pixels"].tolist(), [[2], [0], [1]])
+                self.assertEqual(labels["object_visible"].tolist(), [[True], [False], [True]])
+                np.testing.assert_allclose(labels["object_visibility_fraction"][:, 0], [0.5, 0.0, 0.25])
+                self.assertEqual(labels["goal_mask_pixels"].tolist(), [[1], [2], [1]])
 
     def test_objectcentric_task_is_registered_without_changing_pushcube(self):
         import gymnasium as gym

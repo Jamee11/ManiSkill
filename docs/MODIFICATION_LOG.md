@@ -55,3 +55,11 @@
 - 原因：当前 raw `(T,8)` Panda joint action 与跨机器人末端控制不等价；若不先明确 frame、mask、object slot 和 command/transition 的区别，后续会把 simulator 的状态变化误当作真实机器人命令。
 - 精确变更：新增 `docs/EORT_CROSS_EMBODIMENT_CONTRACT_CN.md`，规定以具名 object token、task-frame 标定和最多双臂的局部 EEF 7D canonical command 为目标契约，并记录 DiT4DiT、X-WAM、τ₀-WM、DreamDojo 的分工和验收门槛。
 - 明确不做：不修改现有 v2 schema、采集逻辑、模型结构或训练配置；该文档不是已实现功能，也不使当前 raw joint action 自动成为 canonical command。
+
+## 2026-07-13 10:00:29 UTC — v2 segmentation ID 与可见率 QA
+
+- 原因：raw segmentation 虽保存 actor label，但原轨迹不含 object/goal 的 ID 映射，导致无法审计目标对象是否被相机看到。
+- 精确变更：`PushCubeEORT-v1` 在每帧额外写入 object/goal 的 static `per_scene_id`；v2 派生器验证 ID 为正整数且轨迹内恒定，并输出 object/goal 的 mask pixel count、visibility fraction、visible bool 及 manifest 语义。
+- 保留行为：不改变物理、奖励、成功条件、控制模式、原始 `(T,8)` action 或既有 v1 schema；完全遮挡是有效数据，标为 `visible=false` 而非报错。
+- 兼容性：旧 v2 raw 没有两个 ID 时仍导出既有字段，并在 summary 标为 `segmentation_visibility=false`；只出现一个 ID 则拒绝导出，避免不完整角色映射。
+- 验证：单元测试覆盖可见、完全遮挡的 synthetic mask；GPU 4 上 1/1 成功 HDF5 保存 `(72,1)` int32 ID，derived 前 `T=71` 帧 pixel count、fraction、visible 与 raw segmentation 逐帧一致。

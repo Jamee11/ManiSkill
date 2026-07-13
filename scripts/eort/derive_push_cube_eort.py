@@ -40,6 +40,34 @@ def _finite_array(group: h5py.Group, path: str, steps: int, width: int) -> np.nd
     return array
 
 
+def _static_segmentation_id(group: h5py.Group, path: str, steps: int) -> int:
+    array = np.asarray(_dataset(group, path))
+    if array.shape != (steps + 1, 1) or not np.issubdtype(array.dtype, np.integer):
+        raise ValueError(
+            f"{group.name}/{path} must be an integer array with shape {(steps + 1, 1)}, got {array.shape} {array.dtype}"
+        )
+    if np.any(array <= 0) or not np.all(array == array[0, 0]):
+        raise ValueError(f"{group.name}/{path} must contain one positive static actor ID")
+    return int(array[0, 0])
+
+
+def _segmentation_visibility(
+    group: h5py.Group, camera: str, steps: int, actor_id: int
+) -> tuple[np.ndarray, np.ndarray]:
+    segmentation = np.asarray(_dataset(group, f"obs/sensor_data/{camera}/segmentation"))
+    if (
+        segmentation.ndim != 4
+        or segmentation.shape[0] != steps + 1
+        or segmentation.shape[-1] != 1
+    ):
+        raise ValueError(
+            f"{group.name}/obs/sensor_data/{camera}/segmentation must have shape (T+1,H,W,1), got {segmentation.shape}"
+        )
+    mask = segmentation[:steps, ..., 0] == actor_id
+    pixels = mask.sum(axis=(1, 2), dtype=np.int32)
+    return pixels[:, None], (pixels / mask[0].size).astype(np.float32)[:, None]
+
+
 def _normalized_quaternion_wxyz(quaternion: np.ndarray, name: str) -> np.ndarray:
     norm = np.linalg.norm(quaternion, axis=1, keepdims=True)
     if np.any(norm <= 1e-6):
@@ -189,6 +217,35 @@ def derive_trajectory_objectcentric_v2(
     robot_obj_contact_force_norm = _finite_array(
         group, "obs/extra/robot_obj_contact_force_norm", steps, 1
     )
+    extra = group["obs/extra"]
+    has_object_id = "obj_segmentation_id" in extra
+    has_goal_id = "goal_segmentation_id" in extra
+    if has_object_id != has_goal_id:
+        raise ValueError(f"{group.name} must contain both object and goal segmentation IDs")
+    visibility_arrays: dict[str, np.ndarray] = {}
+    if has_object_id:
+        object_segmentation_id = _static_segmentation_id(
+            group, "obs/extra/obj_segmentation_id", steps
+        )
+        goal_segmentation_id = _static_segmentation_id(
+            group, "obs/extra/goal_segmentation_id", steps
+        )
+        object_mask_pixels, object_visibility_fraction = _segmentation_visibility(
+            group, camera, steps, object_segmentation_id
+        )
+        goal_mask_pixels, goal_visibility_fraction = _segmentation_visibility(
+            group, camera, steps, goal_segmentation_id
+        )
+        visibility_arrays = {
+            "object_segmentation_id": np.asarray([object_segmentation_id], dtype=np.int32),
+            "goal_segmentation_id": np.asarray([goal_segmentation_id], dtype=np.int32),
+            "object_mask_pixels": object_mask_pixels,
+            "object_visibility_fraction": object_visibility_fraction,
+            "object_visible": object_mask_pixels > 0,
+            "goal_mask_pixels": goal_mask_pixels,
+            "goal_visibility_fraction": goal_visibility_fraction,
+            "goal_visible": goal_mask_pixels > 0,
+        }
     future_pos_delta, future_rotvec, future_valid = _future_object_transitions(
         object_pose, steps, future_horizons
     )
@@ -218,6 +275,7 @@ def derive_trajectory_objectcentric_v2(
             "object_future_valid": future_valid,
         }
     )
+    arrays.update(visibility_arrays)
     return arrays
 
 
@@ -295,6 +353,12 @@ def derive_dataset(
                     "future_horizons_steps": list(future_horizons),
                 }
             )
+            if "object_visible" in arrays:
+                records[-1]["segmentation_visibility"] = {
+                    "object_id_source": "obs/extra/obj_segmentation_id",
+                    "goal_id_source": "obs/extra/goal_segmentation_id",
+                    "fraction": "matching pixels divided by camera image pixels",
+                }
 
     manifest_path = output_dir / "manifest.jsonl"
     manifest_path.write_text(
@@ -317,6 +381,9 @@ def derive_dataset(
                 "physical_contact_source": "robot_obj_contact_force_norm",
                 "contact_force_threshold": contact_force_threshold,
                 "future_horizons_steps": list(future_horizons),
+                "segmentation_visibility": all(
+                    "object_visible" in arrays for _, arrays in outputs
+                ),
             }
         )
     (output_dir / "summary.json").write_text(

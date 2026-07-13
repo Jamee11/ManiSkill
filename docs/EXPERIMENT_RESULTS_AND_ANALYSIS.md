@@ -2,9 +2,9 @@
 
 ## ManiSkill PushCube EORT pilot
 
-状态：环境、schema smoke 与 1 条 v2 端到端轨迹验证已通过；尚未进行批量采集或训练。
+状态：环境、schema smoke、v2 端到端轨迹与 object/goal 可见率 QA 已通过；尚未进行批量采集或训练。
 
-计划：完成 `maniskill-eort` 环境 smoke 后，采集 10 条成功的 `PushCube-v1` motion-planning 轨迹，并导出/验证 EORT sidecar。
+计划：在经调度确认的 GPU 上采集 10 条成功的 `PushCubeEORT-v1` motion-planning 轨迹，并检查 EORT sidecar 的可见率分布。
 
 预注册检查：环境版本、episode 成功数、HDF5 schema、`T+1` observation 与 `T` action 对齐、所有导出数值有限、RGB/depth/segmentation 流存在。
 
@@ -64,3 +64,10 @@
 - 设置：GPU 4 上只读创建 `PushCubeEORT-v1`，以 `state_dict+segmentation` reset，比较 runtime actor `per_scene_id` 和 `base_camera` segmentation 像素。
 - 结果：`obj.per_scene_id=18`，对应 24 个 object mask 像素；`goal_region.per_scene_id=19`，对应 524 个 goal mask 像素。两个 ID 都存在于同一帧 segmentation。
 - 分析：ManiSkill runtime API 能正确提供角色→actor-ID；当前缺口仅为采集器未把 ID 保存到 HDF5。补写两个静态 ID 字段即可让导出器计算目标可见率，无需猜测像素 label 或改变物理。
+
+### 2026-07-13 10:00:29 UTC — v2 segmentation 持久化与可见率 QA 验证
+
+- 设置：在 GPU 4 上以新输出目录运行 `NUM_TRAJ=1` 的 v2 motion-planning 采集与派生；对 raw HDF5 与 NPZ 执行逐元素断言。
+- 采集结果：1/1 成功、`T=71`，raw 新增 `obj_segmentation_id` 和 `goal_segmentation_id` 均为静态 `(72,1)` int32。
+- 对齐结果：object ID=18、goal ID=19；derived 的 mask pixel count、visibility fraction、visible bool 分别逐帧匹配 raw segmentation 前 `T` 帧。object 在 71/71 帧可见，面积为 22–30 px；goal 在 71/71 帧可见，面积为 510–524 px。
+- 分析：v2 已具备 object/goal 角色到 segmentation mask 的可审计链路。该结果只证明一条无完全遮挡轨迹的 schema 与对齐正确；批量阶段仍须统计可见率分布，并通过遮挡、漏检和 ID-switch 注入测试验证策略鲁棒性。

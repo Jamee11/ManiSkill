@@ -63,7 +63,7 @@ future_object_valid           : (T,H,N) bool
 arm_present                   : (A,) bool
 ```
 
-`interaction_phase`、role、valid、visible、arm-present 是离散 token/mask，必须作为 embedding 或 mask 处理；不能 q99 连续归一化。连续 pose/velocity/force/future delta 只用训练集统计量归一化。当前 PushCube v2 是该契约的一个 `A=1,N=1,G=1,H=3` 子集；它尚缺 object ID 到 segmentation actor-ID 的映射，故 `object_visible` 与 visibility fraction 目前未生成。
+`interaction_phase`、role、valid、visible、arm-present 是离散 token/mask，必须作为 embedding 或 mask 处理；不能 q99 连续归一化。连续 pose/velocity/force/future delta 只用训练集统计量归一化。当前 PushCube v2 是该契约的一个 `A=1,N=1,G=1,H=3` 子集；已持久化 object/goal actor ID 并导出 object/goal visibility fraction。它仍未覆盖多 object、遮挡或真实感知 ID 管理。
 
 ## 4. 模型路线
 
