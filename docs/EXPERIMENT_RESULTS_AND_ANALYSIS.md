@@ -58,3 +58,9 @@
 - 结果：三种视觉流均为 `T+1=72` 帧，shape 分别为 `(72,128,128,3)/(72,128,128,1)/(72,128,128,1)`；segmentation 为 `int32`，包含 15 个 actor label。
 - 限制：episode metadata 没有记录 `obj` 或 `goal_region` 对应的 segmentation actor ID。仅从像素 label 不能可靠判断哪一个是目标方块，故无法计算 object-visible rate 或目标 mask 面积。
 - 下一步：批量采集前，新增可审计的 actor-ID→语义角色映射（至少 object、goal、robot links）并基于该映射写入每轨迹可见率/遮挡 QA；在此之前不得把“保存了 segmentation”解释为“对象视觉质量已通过”。
+
+### 2026-07-13 08:11:30 UTC — segmentation actor-ID 映射可行性 smoke
+
+- 设置：GPU 4 上只读创建 `PushCubeEORT-v1`，以 `state_dict+segmentation` reset，比较 runtime actor `per_scene_id` 和 `base_camera` segmentation 像素。
+- 结果：`obj.per_scene_id=18`，对应 24 个 object mask 像素；`goal_region.per_scene_id=19`，对应 524 个 goal mask 像素。两个 ID 都存在于同一帧 segmentation。
+- 分析：ManiSkill runtime API 能正确提供角色→actor-ID；当前缺口仅为采集器未把 ID 保存到 HDF5。补写两个静态 ID 字段即可让导出器计算目标可见率，无需猜测像素 label 或改变物理。
