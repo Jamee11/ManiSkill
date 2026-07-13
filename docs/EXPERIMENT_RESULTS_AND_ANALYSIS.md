@@ -105,3 +105,10 @@
 - 合成验证：2×2、已知 1 m depth/单位内外参 fixture 的回投 centroid 精确为预期坐标；无 object mask 帧保持 zero centroid 且 `valid=false`。四项 EORT 单测全通过。
 - 真实验证：新 `derived_segdepth` sidecar 在已采集 `T=71` 轨迹上 71/71 帧有效；中心误差为 0.0150–0.0207 m，均值 0.0197 m。首帧可见表面 centroid `[0.002364,0.047884,0.039639]`，simulator object center `[-0.000749,0.053644,0.020000]`。
 - 分析：约 2 cm 偏差符合相机只能看到 cube 表面而非几何中心的预期。这是一个带 oracle actor mask 的 RGB-D 几何诊断上界，不是可部署的 pose tracker；后续 object-state model 必须学习/标定该 surface-to-center bias，并承受检测漏失、ID switch、深度噪声和相机标定误差。
+
+### 2026-07-13 13:10:00 UTC — Panda joint-to-EEF controller replay
+
+- 设置：使用 ManiSkill 官方 `replay_trajectory` 将真实 successful `PushCubeEORT-v1` raw `pd_joint_pos` trajectory 转换为 `pd_ee_delta_pose`，CPU PhysX + 显式 GPU 4 renderer，`count=1`，保存独立 converted HDF5。
+- 结果：converted trajectory action 为 `(71,7)`，observation 为 72 帧，最终 `success=True`。动作每维绝对最大值为 `[0.182812,0.027179,0.288201,0.008141,0.243892,0.017678,1.0]`；metadata 明确 target control mode 为 `pd_ee_delta_pose`。
+- 解释：这 7D 是 Panda controller 的归一化 root-frame delta command，不是从 TCP observation 差分得到的 `eef_transition_local`。官方 replay 成功证明 Panda source-action 到 EEF-controller 的 IK 转换可执行，但没有证明该 action 可直接发送给 Franka/Piper 真机，也没有证明 local-frame canonical action 的等价性。
+- 下一步：保留 converted HDF5 为 Panda controller-command reference；在 Piper 控制器/标定接口到位后，建立显式 task-frame adapter 和同样的 command replay check，禁止使用 observed transition 替代硬件命令。

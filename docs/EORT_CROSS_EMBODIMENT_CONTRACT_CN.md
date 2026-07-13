@@ -71,6 +71,10 @@ arm_present                   : (A,) bool
 
 `object_segdepth_centroid_world` 由 actor-ID segmentation、毫米 depth、`intrinsic_cv` 和 `extrinsic_cv` 回投得到，不读取 object pose；它是带 oracle actor mask 的几何观测诊断，而不是部署 tracker。可见表面 centroid 与物体几何中心存在系统偏差，必须将其误差作为学习/标定目标，而不能直接替代 `object_pose_task`。
 
+### Panda controller replay 的当前证据
+
+已对一条真实 `pd_joint_pos(T,8)` PushCubeEORT 轨迹使用 ManiSkill 官方转换器，重放为 `pd_ee_delta_pose(T,7)`，转换轨迹的最终 success=True。该 HDF5 action 是 **Panda 的归一化 root-translation/root-aligned-rotation controller command**，与 `eef_transition_local` 的 observed local motion 有意分离。它证明官方 IK 转换可在该 Panda task 上回放，但不满足本契约的 local `canonical_action_cmd`：Piper 控制器、真实夹爪标定、task-frame transform 和跨机器人 replay 尚未验证。
+
 **因果边界：** `future_object_delta` 是时刻 `t` 之后的真值，不能作为 `t` 的可部署 action-policy 输入；它只能作为 object dynamics 的辅助预测目标。首个 GT oracle action gate 只可使用当前时刻可得的 pose、relative geometry、velocity、visibility 与当前接触状态。若实验额外喂入 future GT，必须显式标为不可部署的预测上界，不能与真实 sim2real 条件比较。
 
 ## 4. 模型路线

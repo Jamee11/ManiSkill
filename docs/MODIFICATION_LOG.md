@@ -102,3 +102,10 @@
 - 精确变更：v2 派生器新增 `object_segdepth_centroid_world(T,3)`、`object_segdepth_valid(T,1)` 和 `object_segdepth_centroid_error(T,1)`。它以 object actor-ID 的 segmentation 像素、毫米 depth、CV intrinsics/extrinsics 回投可见点云中心；object pose 只用于误差计算。没有把这些字段接入 action policy。
 - 验证：合成 2×2 calibrated fixture 覆盖可见/不可见和精确坐标；完整 EORT 单测 4/4 通过。真实 `T=71` sidecar 的 71 帧均有效，error 均值 1.97 cm。
 - 明确边界：actor ID 仍是 simulator oracle；surface centroid 不等于 object center。该字段只作为 learned track 前的诊断/监督目标，不能宣称真实部署感知已完成。
+
+## 2026-07-13 13:10:00 UTC — Panda joint-to-EEF command replay audit
+
+- 原因：必须证明至少一种 EEF controller command 能从现有 Panda joint action 转换并闭环重放，不能把 observed TCP transition 误称作 command。
+- 精确变更：未改代码；调用 ManiSkill 官方 `replay_trajectory` 将现有 raw `pd_joint_pos` trajectory 转换保存为独立的 `pd_ee_delta_pose` HDF5。
+- 验证：converted action `(71,7)`、observation 72 帧、最终 success=True，metadata target control mode 为 `pd_ee_delta_pose`。
+- 边界：结果是归一化 root-frame Panda command；不替代 local canonical action、Piper adapter 或真机 replay 验证。
