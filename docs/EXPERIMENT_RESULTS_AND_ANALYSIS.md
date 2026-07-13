@@ -51,3 +51,10 @@
 - 对齐检查：raw `obj_linear_velocity`、`obj_angular_velocity`、`robot_obj_contact_force`、`robot_obj_contact_force_norm` 分别为有限的 `(72,3)/(72,3)/(72,3)/(72,1)`；derived 对应字段为前 71 帧。逐元素断言 raw `[:T]` 等于 derived，`physical_contact` 逐帧等于 raw force-norm `>1e-6`。
 - 标签结果：23/71 帧为测得接触；phase 计数为 approach=48、measured-contact-while-object-moves=23。未来位移、旋转和有效性 mask 均为 `(71,3,3)` 且有限（mask 为 bool）。
 - 分析与下一步：这解除 v2 在真实成功 HDF5 上的物理接触和时间对齐疑虑，但只覆盖单条 PushCube oracle 轨迹。批量采集前仍需增加 RGB/depth/segmentation 的对象可见率与 mask 覆盖率 QA；此数据也不能替代真实感知输入或证明 sim2real 效果。
+
+### 2026-07-13 07:57:44 UTC — v2 segmentation 可见性审计
+
+- 设置：只读检查上述 v2 成功 HDF5 的 `base_camera` RGB、depth 与 segmentation dataset，以及 episode metadata。
+- 结果：三种视觉流均为 `T+1=72` 帧，shape 分别为 `(72,128,128,3)/(72,128,128,1)/(72,128,128,1)`；segmentation 为 `int32`，包含 15 个 actor label。
+- 限制：episode metadata 没有记录 `obj` 或 `goal_region` 对应的 segmentation actor ID。仅从像素 label 不能可靠判断哪一个是目标方块，故无法计算 object-visible rate 或目标 mask 面积。
+- 下一步：批量采集前，新增可审计的 actor-ID→语义角色映射（至少 object、goal、robot links）并基于该映射写入每轨迹可见率/遮挡 QA；在此之前不得把“保存了 segmentation”解释为“对象视觉质量已通过”。
