@@ -63,3 +63,9 @@
 - 保留行为：不改变物理、奖励、成功条件、控制模式、原始 `(T,8)` action 或既有 v1 schema；完全遮挡是有效数据，标为 `visible=false` 而非报错。
 - 兼容性：旧 v2 raw 没有两个 ID 时仍导出既有字段，并在 summary 标为 `segmentation_visibility=false`；只出现一个 ID 则拒绝导出，避免不完整角色映射。
 - 验证：单元测试覆盖可见、完全遮挡的 synthetic mask；GPU 4 上 1/1 成功 HDF5 保存 `(72,1)` int32 ID，derived 前 `T=71` 帧 pixel count、fraction、visible 与 raw segmentation 逐帧一致。
+
+## 2026-07-13 12:16:30 UTC — Oracle condition 因果边界
+
+- 原因：object future trajectory 是行动之后的真值；若直接输入 action policy，会产生未来泄露。另经 source audit 确认 DiT4DiT 现有 RLBench EORT config 将 interaction state 放入 q99 连续归一化路径。
+- 精确变更：更新跨机器人契约和风险台账，规定首个 action gate 仅使用当前可得 continuous object state；future trajectory 仅作辅助预测目标，离散 phase/visibility/role 需独立 embedding/mask 或暂不作为输入。
+- 明确不做：不修改 DiT4DiT、ManiSkill 训练/采集代码，也不宣称现有 RLBench proxy condition 可直接迁移。

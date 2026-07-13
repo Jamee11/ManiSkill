@@ -65,9 +65,11 @@ arm_present                   : (A,) bool
 
 `interaction_phase`、role、valid、visible、arm-present 是离散 token/mask，必须作为 embedding 或 mask 处理；不能 q99 连续归一化。连续 pose/velocity/force/future delta 只用训练集统计量归一化。当前 PushCube v2 是该契约的一个 `A=1,N=1,G=1,H=3` 子集；已持久化 object/goal actor ID 并导出 object/goal visibility fraction。它仍未覆盖多 object、遮挡或真实感知 ID 管理。
 
+**因果边界：** `future_object_delta` 是时刻 `t` 之后的真值，不能作为 `t` 的可部署 action-policy 输入；它只能作为 object dynamics 的辅助预测目标。首个 GT oracle action gate 只可使用当前时刻可得的 pose、relative geometry、velocity、visibility 与当前接触状态。若实验额外喂入 future GT，必须显式标为不可部署的预测上界，不能与真实 sim2real 条件比较。
+
 ## 4. 模型路线
 
-1. **首个因果 gate：DiT4DiT。** 保持视觉和 action diffusion 主干不变，先比较 robot-only 与 GT object-token 条件。只在 object token 带来同数据、同训练预算、留出任务的闭环收益后，再接入预测 token。DiT4DiT 是最低风险的“对象信息是否有用”检验，不是最终跨机器人 backbone。
+1. **首个因果 gate：DiT4DiT。** 保持视觉和 action diffusion 主干不变，先比较 robot-only 与当前时刻 GT continuous object condition。现有 loader 可拼接具名 state key，但 RLBench 的旧 EORT config 会 q99-normalize `object_interaction_state`，不可复用到离散 phase；phase 必须暂时不输入，或新增离散 embedding 路径。只在 object condition 带来同数据、同训练预算、留出任务的闭环收益后，再接入预测 token。DiT4DiT 是最低风险的“对象信息是否有用”检验，不是最终跨机器人 backbone。
 2. **最终主线候选：X-WAM。** 它原生接受 RGB-D、多视图、8/16D EEF proprio 与 7/14D 单/双臂 action；推荐在上述 gate 通过后，将 object token 作为独立条件 token 流加入其 action/proprio fusion，而非把类别 phase 拼进连续 proprio。开始前必须取得、校验可用 checkpoint，并保留不加 token 的同数据基线。
 3. **迁移消融：τ₀-WM。** 仅比较其预训练视频/action trunk 在统一动作适配器上的收益。20D 双臂相对 EEF-6D 与本契约不同，action input/output 层可能重初始化；必须报告 mismatch、冻结/微调范围与单臂占位策略。
 4. **后续辅助：DreamDojo。** 用于生成/筛选轨迹、学习对象未来状态或规划候选，不作为首个端到端 action policy；需要独立 action head 和动作执行评估才有价值。
