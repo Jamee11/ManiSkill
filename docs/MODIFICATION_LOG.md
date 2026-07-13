@@ -135,3 +135,9 @@
 - 原因：需实际确认分辨率改动经 GPU renderer、原生 motion planner、HDF5 与 v2 sidecar 后仍完整，而不是只通过语法检查。
 - 精确变更：未再修改代码；GPU 4 上使用新的不可覆盖目录采集 `NUM_TRAJ=1`，CPU PhysX + GPU renderer，随后运行既有 v2 派生器。
 - 证据：1/1 最终 success、`T=71`；raw RGB/depth/segmentation 均为 `(72,256,256,3/1/1)`；object mask 90–117 pixels（均值 95.8）、71/71 visible、71/71 segmentation-depth valid。GPU 4 采集前后 `nvidia-smi` 均报告 63,782 MiB used，且无 OOM；该数值不是峰值显存。
+
+## 2026-07-13 13:36:00 UTC — 256×256 到 DiT4DiT 训练输入链路验证
+
+- 原因：仅 raw HDF5 为高分辨率不足以证明训练没有重新上采样或错误读取视频，必须检查 exporter metadata 和实际 loader sample。
+- 精确变更：未修改 DiT4DiT 代码；对 256×256 smoke 运行已有专用 exporter，并用既有 `ManiSkillEORTPushCubeOracleDataConfig` 读取一个 sample。
+- 证据：LeRobot video feature 为 `[256,256,3]`、20 FPS、71 Parquet rows 和 1 个 MP4；DiT4DiT dataset 初始化成功，实际 `image` tensor 为 `(3,224,224)`。这是 encoder 前的下采样，而非把 128×128 放大。

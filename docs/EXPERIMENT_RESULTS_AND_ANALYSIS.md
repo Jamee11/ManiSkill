@@ -138,3 +138,9 @@
 - 设置：GPU 4、CPU PhysX + GPU renderer、原生 Panda motion planner，`NUM_TRAJ=1`；独立输出目录为 `/remote-home/jinminghao/datasets/maniskill_push_cube_objectcentric_v2_256_smoke_20260713T133354Z`。
 - 结果：1/1 最终 success，`T=71`。raw RGB/depth/segmentation 为 `(72,256,256,3)/(72,256,256,1)/(72,256,256,1)`；derived object mask 为 90–117 pixels、均值 95.8，71/71 object-visible 且 71/71 segmentation-depth valid。phase count 为 approach=48、contact=0、moving-in-contact=14、goal=9，符合 raw success 持续帧语义。
 - 分析：相同视角下 object mask 像素约为旧 128×128 smoke 的四倍，证明采集端不再依赖上采样。GPU 4 采前/后报告显存均为 63,782 MiB 且未 OOM，但没有采样峰值；批量前需保留峰值与吞吐 QA，也仍需遮挡和视觉域随机化覆盖。
+
+### 2026-07-13 13:36:00 UTC — 256×256 LeRobot/DiT4DiT input 验证
+
+- 设置：对上述高分辨率 smoke 运行既有 `convert_maniskill_eort_to_lerobot.py`，再以 `maniskill_eort_push_cube_oracle_lerobot` mixture 和既有 data config 读取一个 DiT4DiT sample。
+- 结果：LeRobot `observation.images.front` metadata 为 `[256,256,3]`、20 FPS；有 71 行 Parquet 和 1 个 H.264 MP4。loader 成功初始化 dataset（长度 71），sample 的实际 `image` list 含一个 `(3,224,224)` tensor；state/action masks 同时生成。
+- 分析：高分辨率信息在数据层保留，训练 transform 在 encoder 前下采样为 224，不存在从 128 到 224 的伪信息增加。这个验证仅覆盖单条高分辨率 smoke；批量采集仍需峰值显存、视频 decode 吞吐和 object-pixel 分布 QA。
