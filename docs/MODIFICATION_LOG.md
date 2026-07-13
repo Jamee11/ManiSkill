@@ -76,3 +76,9 @@
 - 精确变更：v2 导出器新增 `eef_transition_local(T,7)`，从 `tcp_pose[t:t+1]` 用当前 EEF frame 的逆旋转计算 local `Δxyz + Δrotvec`，并将 raw gripper `[-1,1]` 转为 `[0,1]` open fraction。manifest 明确 `controller_command=false`。
 - 保留行为：不改变 raw `(T,8)` action 或把 transition 重命名为 command；v1 不受影响。
 - 验证：单元测试覆盖非平凡局部 frame 旋转和夹爪归一化；GPU 4 的完整 1/1 采集/派生结果有有限 `(71,7)` transition，且末维逐元素匹配 raw gripper 映射。
+
+## 2026-07-13 12:25:08 UTC — DiT4DiT 训练出口约束
+
+- 原因：source audit 发现 ManiSkill 内置 LeRobot converter 只读取 raw action、qpos 与 RGB，输出 v3 schema；它会丢弃 EORT extras，且当前 DiT4DiT loader 的配置使用 v2。
+- 精确变更：更新跨机器人契约和风险台账，要求后续复用 DiT4DiT EORT parquet/video 模式实现专用 v2 exporter，并把版本/字段完整性设为训练前 gate。
+- 明确不做：不安装依赖、不修改 converter 或启动训练；本次只记录接口不兼容性。

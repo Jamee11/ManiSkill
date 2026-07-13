@@ -79,10 +79,11 @@ arm_present                   : (A,) bool
 ## 5. 可执行门槛
 
 1. 先给 ManiSkill v3 补齐 actor-ID→object/goal/robot-role 映射和 visibility QA；不得直接批量采 v2 后声称视觉监督可用。
-2. 以已存的 raw 8D action 保留可回放性；新增明确来源的 EEF command/transition 数据，完成 action replay 误差检查后再生成 canonical action。
+2. 以已存的 raw 8D action 保留可回放性；已新增明确标注的 observed EEF transition，仍须完成 action replay 误差检查后才能生成 canonical command。
 3. 用 episode 级 train/val/test 划分，统计量只由 train 计算；采集至少覆盖 object pose、尺寸、摩擦、光照、相机、干扰物和初始机器人姿态变化。
-4. 在 ManiSkill 先完成四组：robot-only、GT object token、噪声/漏检 token、预测 token；逐项报告任务成功率、对象误差、接触/phase F1 与动作安全限幅触发率。
-5. 完成单臂 Franka sim→real 后，再扩展双臂 Piper；双臂任务必须测主动臂选择、跨臂碰撞、同步和非活动臂 mask，不能由单臂零填充结果代替。
+4. 专用导出器必须写 DiT4DiT 当前可读的 LeRobot v2 parquet/video schema。ManiSkill 内置 v3 转换器只保留 raw action/qpos，会丢弃 EORT extras，不能直接使用。
+5. 在 ManiSkill 先完成四组：robot-only、GT object token、噪声/漏检 token、预测 token；逐项报告任务成功率、对象误差、接触/phase F1 与动作安全限幅触发率。
+6. 完成单臂 Franka sim→real 后，再扩展双臂 Piper；双臂任务必须测主动臂选择、跨臂碰撞、同步和非活动臂 mask，不能由单臂零填充结果代替。
 
 ## 6. 当前最大不确定性
 
