@@ -52,6 +52,8 @@ object_role                   : (N,)       # categorical: manipulated / target /
 object_valid                  : (T,N) bool
 object_visible                : (T,V,N) bool
 object_visibility_fraction    : (T,V,N,1)
+object_segdepth_centroid_world: (T,N,3)   # oracle segmentation + metric depth 的可见表面几何 proxy
+object_segdepth_valid         : (T,N) bool
 ee_pose_task                  : (T,A,7)
 ee_to_object                  : (T,A,N,6)  # translation + rotvec
 object_to_goal                : (T,N,G,6)  # translation + rotvec
@@ -66,6 +68,8 @@ arm_present                   : (A,) bool
 `interaction_phase`、role、valid、visible、arm-present 是离散 token/mask，必须作为 embedding 或 mask 处理；不能 q99 连续归一化。连续 pose/velocity/force/future delta 只用训练集统计量归一化。当前 PushCube v2 是该契约的一个 `A=1,N=1,G=1,H=3` 子集；已持久化 object/goal actor ID 并导出 object/goal visibility fraction。它仍未覆盖多 object、遮挡或真实感知 ID 管理。
 
 当前 v2 也导出 `eef_transition_local(T,7)`：当前 EEF frame 的 observed `Δxyz + Δrotvec` 加 `[0,1]` gripper open fraction。它保留了过渡语义，但 manifest 明确它不是 `canonical_action_cmd`；不可跳过 controller replay 而把它用于真机命令。
+
+`object_segdepth_centroid_world` 由 actor-ID segmentation、毫米 depth、`intrinsic_cv` 和 `extrinsic_cv` 回投得到，不读取 object pose；它是带 oracle actor mask 的几何观测诊断，而不是部署 tracker。可见表面 centroid 与物体几何中心存在系统偏差，必须将其误差作为学习/标定目标，而不能直接替代 `object_pose_task`。
 
 **因果边界：** `future_object_delta` 是时刻 `t` 之后的真值，不能作为 `t` 的可部署 action-policy 输入；它只能作为 object dynamics 的辅助预测目标。首个 GT oracle action gate 只可使用当前时刻可得的 pose、relative geometry、velocity、visibility 与当前接触状态。若实验额外喂入 future GT，必须显式标为不可部署的预测上界，不能与真实 sim2real 条件比较。
 

@@ -95,3 +95,10 @@
 - 原因：需要按本地可运行的接口而非论文印象决定 DiT4DiT、τ₀-WM、DreamDojo 与 X-WAM 的分工。
 - 精确变更：未改模型或数据；审计 X-WAM 数据加载器、模型配置和本地权重目录，并把 16D/14D 双臂 mask 接口、无本地 checkpoint 的事实和后续门槛写入跨机器人契约与风险台账。
 - 决策：保持 DiT4DiT 为首个 ManiSkill oracle 因果 gate；X-WAM 为在 checkpoint 验证后的主线候选；τ₀-WM 仅作预训练迁移消融，DreamDojo 仅作未来状态/轨迹辅助。
+
+## 2026-07-13 13:05:00 UTC — v2 segmentation-depth object localization proxy
+
+- 原因：真实感知路线需要先验证现有 RGB-D、相机标定与 object mask 能否提供可审计的几何观测，而不是直接把 simulator object pose 当作视觉定位结果。
+- 精确变更：v2 派生器新增 `object_segdepth_centroid_world(T,3)`、`object_segdepth_valid(T,1)` 和 `object_segdepth_centroid_error(T,1)`。它以 object actor-ID 的 segmentation 像素、毫米 depth、CV intrinsics/extrinsics 回投可见点云中心；object pose 只用于误差计算。没有把这些字段接入 action policy。
+- 验证：合成 2×2 calibrated fixture 覆盖可见/不可见和精确坐标；完整 EORT 单测 4/4 通过。真实 `T=71` sidecar 的 71 帧均有效，error 均值 1.97 cm。
+- 明确边界：actor ID 仍是 simulator oracle；surface centroid 不等于 object center。该字段只作为 learned track 前的诊断/监督目标，不能宣称真实部署感知已完成。

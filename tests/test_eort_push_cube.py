@@ -42,7 +42,7 @@ class PushCubeEORTTest(unittest.TestCase):
                 extra.create_dataset("goal_pos", data=np.tile([1.0, 0.0, 0.0], (4, 1)))
                 camera = obs.create_group("sensor_data").create_group("base_camera")
                 camera.create_dataset("rgb", data=np.zeros((4, 2, 2, 3), dtype=np.uint8))
-                camera.create_dataset("depth", data=np.zeros((4, 2, 2, 1), dtype=np.uint16))
+                camera.create_dataset("depth", data=np.full((4, 2, 2, 1), 1000, dtype=np.uint16))
                 camera.create_dataset("segmentation", data=np.zeros((4, 2, 2, 1), dtype=np.uint16))
 
             summary = module.derive_dataset(trajectory, root / "derived")
@@ -99,7 +99,7 @@ class PushCubeEORTTest(unittest.TestCase):
                 extra.create_dataset("goal_segmentation_id", data=np.full((4, 1), 9, dtype=np.int32))
                 camera = obs.create_group("sensor_data").create_group("base_camera")
                 camera.create_dataset("rgb", data=np.zeros((4, 2, 2, 3), dtype=np.uint8))
-                camera.create_dataset("depth", data=np.zeros((4, 2, 2, 1), dtype=np.uint16))
+                camera.create_dataset("depth", data=np.full((4, 2, 2, 1), 1000, dtype=np.uint16))
                 camera.create_dataset(
                     "segmentation",
                     data=np.array(
@@ -110,6 +110,15 @@ class PushCubeEORTTest(unittest.TestCase):
                             [[[7], [0]], [[0], [9]]],
                         ],
                         dtype=np.int32,
+                    ),
+                )
+                params = obs.create_group("sensor_param").create_group("base_camera")
+                params.create_dataset("intrinsic_cv", data=np.tile(np.eye(3, dtype=np.float32), (4, 1, 1)))
+                params.create_dataset(
+                    "extrinsic_cv",
+                    data=np.tile(
+                        np.concatenate((np.eye(3), np.zeros((3, 1))), axis=1).astype(np.float32),
+                        (4, 1, 1),
                     ),
                 )
 
@@ -140,6 +149,8 @@ class PushCubeEORTTest(unittest.TestCase):
                 self.assertEqual(labels["object_mask_pixels"].tolist(), [[2], [0], [1]])
                 self.assertEqual(labels["object_visible"].tolist(), [[True], [False], [True]])
                 np.testing.assert_allclose(labels["object_visibility_fraction"][:, 0], [0.5, 0.0, 0.25])
+                self.assertEqual(labels["object_segdepth_valid"].tolist(), [[True], [False], [True]])
+                np.testing.assert_allclose(labels["object_segdepth_centroid_world"], [[0.5, 0.5, 1.0], [0, 0, 0], [0, 0, 1.0]])
                 self.assertEqual(labels["goal_mask_pixels"].tolist(), [[1], [2], [1]])
                 np.testing.assert_allclose(labels["eef_transition_local"][:, :6], 0.0)
                 np.testing.assert_allclose(labels["eef_transition_local"][:, 6], [0.0, 0.5, 1.0])

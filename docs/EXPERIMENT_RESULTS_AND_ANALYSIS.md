@@ -98,3 +98,10 @@
 - 但 X-WAM 本机没有 `checkpoints/`；README 的公开权重仍需实际下载、加载和 forward 验证。因此当前只能将它列为 DiT4DiT oracle gate 之后的主线候选，不可报告为可用 pretrained baseline。
 - τ₀-WM 当前正在以双臂预训练接口运行；其 action/proprio 语义与 14D/16D 契约不一致，适合迁移消融而不是首个统一策略。DreamDojo 是 world-model/trajectory 候选，未提供可直接比较的 action policy 接口。
 - 决策不变：ManiSkill 是新的 object-centric 数据与 GT 评测主场，DiT4DiT 先回答“当前 object information 是否改善 action”；仅在此 gate 有闭环收益后，再投入 X-WAM 数据转换、权重加载和 token fusion。
+
+### 2026-07-13 13:05:00 UTC — segmentation-depth object localization proxy
+
+- 设置：v2 派生器从 raw `segmentation`、毫米 `depth`、逐帧 `intrinsic_cv (3,3)` 与 `extrinsic_cv (3,4)`回投 object actor-ID 像素到 world，输出 `object_segdepth_centroid_world (T,3)`、`object_segdepth_valid (T,1)` 与相对于 simulator object center 的误差。object pose 只用于误差标签，不参与回投。
+- 合成验证：2×2、已知 1 m depth/单位内外参 fixture 的回投 centroid 精确为预期坐标；无 object mask 帧保持 zero centroid 且 `valid=false`。四项 EORT 单测全通过。
+- 真实验证：新 `derived_segdepth` sidecar 在已采集 `T=71` 轨迹上 71/71 帧有效；中心误差为 0.0150–0.0207 m，均值 0.0197 m。首帧可见表面 centroid `[0.002364,0.047884,0.039639]`，simulator object center `[-0.000749,0.053644,0.020000]`。
+- 分析：约 2 cm 偏差符合相机只能看到 cube 表面而非几何中心的预期。这是一个带 oracle actor mask 的 RGB-D 几何诊断上界，不是可部署的 pose tracker；后续 object-state model 必须学习/标定该 surface-to-center bias，并承受检测漏失、ID switch、深度噪声和相机标定误差。

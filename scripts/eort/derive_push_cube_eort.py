@@ -68,6 +68,42 @@ def _segmentation_visibility(
     return pixels[:, None], (pixels / mask[0].size).astype(np.float32)[:, None]
 
 
+def _segdepth_centroid_world(
+    group: h5py.Group, camera: str, steps: int, actor_id: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Back-project an actor's segmentation pixels using metric depth and CV calibration."""
+    segmentation = np.asarray(_dataset(group, f"obs/sensor_data/{camera}/segmentation"))
+    depth = np.asarray(_dataset(group, f"obs/sensor_data/{camera}/depth"), dtype=np.float32)
+    intrinsic = np.asarray(_dataset(group, f"obs/sensor_param/{camera}/intrinsic_cv"), dtype=np.float32)
+    extrinsic = np.asarray(_dataset(group, f"obs/sensor_param/{camera}/extrinsic_cv"), dtype=np.float32)
+    expected_image_shape = (steps + 1, *segmentation.shape[1:3], 1)
+    if segmentation.shape != expected_image_shape or depth.shape != expected_image_shape:
+        raise ValueError(f"{group.name}/{camera} depth and segmentation must share (T+1,H,W,1)")
+    if intrinsic.shape != (steps + 1, 3, 3) or extrinsic.shape != (steps + 1, 3, 4):
+        raise ValueError(f"{group.name}/{camera} requires intrinsic (T+1,3,3) and extrinsic (T+1,3,4)")
+    centroids = np.zeros((steps, 3), dtype=np.float32)
+    valid = np.zeros((steps, 1), dtype=bool)
+    for step in range(steps):
+        rows, cols = np.nonzero(segmentation[step, ..., 0] == actor_id)
+        if len(rows) == 0:
+            continue
+        z = depth[step, rows, cols, 0] / 1000.0  # ManiSkill depth is millimeters.
+        keep = z > 0
+        if not np.any(keep):
+            continue
+        rows, cols, z = rows[keep], cols[keep], z[keep]
+        k = intrinsic[step]
+        if k[0, 0] <= 0 or k[1, 1] <= 0:
+            raise ValueError(f"{group.name}/{camera} has invalid focal length")
+        points_camera = np.stack(
+            ((cols - k[0, 2]) * z / k[0, 0], (rows - k[1, 2]) * z / k[1, 1], z), axis=1
+        )
+        rotation, translation = extrinsic[step, :, :3], extrinsic[step, :, 3]
+        centroids[step] = ((points_camera - translation) @ rotation).mean(axis=0)
+        valid[step, 0] = True
+    return centroids, valid
+
+
 def _normalized_quaternion_wxyz(quaternion: np.ndarray, name: str) -> np.ndarray:
     norm = np.linalg.norm(quaternion, axis=1, keepdims=True)
     if np.any(norm <= 1e-6):
@@ -273,6 +309,9 @@ def derive_trajectory_objectcentric_v2(
         object_mask_pixels, object_visibility_fraction = _segmentation_visibility(
             group, camera, steps, object_segmentation_id
         )
+        object_segdepth_centroid_world, object_segdepth_valid = _segdepth_centroid_world(
+            group, camera, steps, object_segmentation_id
+        )
         goal_mask_pixels, goal_visibility_fraction = _segmentation_visibility(
             group, camera, steps, goal_segmentation_id
         )
@@ -282,6 +321,13 @@ def derive_trajectory_objectcentric_v2(
             "object_mask_pixels": object_mask_pixels,
             "object_visibility_fraction": object_visibility_fraction,
             "object_visible": object_mask_pixels > 0,
+            "object_segdepth_centroid_world": object_segdepth_centroid_world,
+            "object_segdepth_valid": object_segdepth_valid,
+            "object_segdepth_centroid_error": np.where(
+                object_segdepth_valid,
+                np.linalg.norm(object_segdepth_centroid_world - object_pose[:steps, :3], axis=1, keepdims=True),
+                0.0,
+            ).astype(np.float32),
             "goal_mask_pixels": goal_mask_pixels,
             "goal_visibility_fraction": goal_visibility_fraction,
             "goal_visible": goal_mask_pixels > 0,
@@ -406,6 +452,7 @@ def derive_dataset(
                     "object_id_source": "obs/extra/obj_segmentation_id",
                     "goal_id_source": "obs/extra/goal_segmentation_id",
                     "fraction": "matching pixels divided by camera image pixels",
+                    "segdepth_centroid": "segmentation actor pixels back-projected from millimeter depth with intrinsic_cv/extrinsic_cv; oracle actor ID only",
                 }
 
     manifest_path = output_dir / "manifest.jsonl"
