@@ -83,3 +83,11 @@
 - 设置：新增 `eef_transition_local` 后，在 GPU 4 以独立输出目录运行 `NUM_TRAJ=1` 完整采集、派生与 manifest 校验。
 - 结果：1/1 成功、`T=71`；NPZ 的 `eef_transition_local` 为有限 `(71,7)`，前三维为当前 EEF frame 的平移，后三个姿态维为 local rotation-vector，末维逐元素等于 `(raw_action[:,7]+1)/2`。六个运动维最大绝对值为 `[0.008741,0.000735,0.011376,0.000220,0.002282,0.000484]`。
 - 语义：manifest 明确 `controller_command=false`。这条标签可用于 observed-transition/dynamics 或受限的 action-target 研究；它不是 Panda joint command 的跨机器人替代品，未通过 controller replay 前不得用于真机执行结论。
+
+### 2026-07-13 12:37:00 UTC — 真实 v2 → DiT4DiT LeRobot v2 出口验证
+
+- 设置：在 GPU 4 显存约余 18 GB 时，以新的独立目录采集 `NUM_TRAJ=1`；CPU PhysX + GPU renderer。将 raw `push_cube_objectcentric_v2.h5` 与 matching derived v2 manifest 用 DiT4DiT 的 `convert_maniskill_eort_to_lerobot.py` 导出。
+- 采集结果：1/1 motion-planning 成功，`T=71`；raw RGB/segmentation 为 `T+1=72` 帧、`(72,128,128,3)/(72,128,128,1)`。object/goal static IDs 为 `18/19`，object mask 面积 22–30 px、goal 510–524 px，二者均 71/71 帧可见。
+- 导出结果：LeRobot v2 写入一个 `(71,8)` state Parquet、一个 `(71,17)` current continuous object-condition Parquet 字段、一个 `(71,7)` observed-local-EEF-transition action 字段和一条 128×128、71 帧 H.264 MP4。
+- 逐元素验证：Parquet action 等于 NPZ `eef_transition_local`；17D condition 等于 `ee_to_object(3)+ee_to_object_rotvec(3)+object_to_goal(3)+object_linear_velocity(3)+object_angular_velocity(3)+robot_obj_contact_force_norm(1)+object_visibility_fraction(1)`；raw segmentation 重算的两个 pixel count 等于 NPZ QA 字段。`meta/modality.json` 不含 future 或 phase 字段，state gripper 保持零占位而非 action 回填。
+- 分析：ManiSkill 采集、object-centric NPZ 和 DiT4DiT v2 loader-format 之间的实际数据契约已贯通。此处的 object condition 是 simulator GT oracle，而非从 RGB/depth 估计的 object track；只覆盖一个无遮挡 PushCube episode，不能作为训练规模、遮挡鲁棒性或 sim2real 成功的证据。
