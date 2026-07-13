@@ -22,7 +22,7 @@
 
 ## object-centric v2
 
-v2 不替换 v1，而是使用独立的 `PushCubeEORT-v1` 和输出目录。它保持原 PushCube 物理、奖励与成功条件，只额外记录真实 robot-object contact force、物体线速度/角速度。导出器的 contact 来自力范数而不是距离；阶段仅适用于 PushCube：`0=approach`、`1=measured contact`、`2=contact while object moves`、`3=goal reached after contact`。
+v2 不替换 v1，而是使用独立的 `PushCubeEORT-v1` 和输出目录。它保持原 PushCube 物理、奖励与成功条件，只额外记录真实 robot-object contact force、物体线速度/角速度。导出器的 contact 来自力范数而不是距离；阶段仅适用于 PushCube：`0=approach`、`1=measured contact`、`2=contact while object moves`、`3=native task success`。
 
 新采集的 v2 每条 `.npz` 额外包含：
 

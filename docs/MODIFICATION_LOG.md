@@ -129,3 +129,9 @@
 - 原因：128×128 raw RGB-D/segmentation 经过 DiT4DiT 的 224×224 resize 只能插值，不能恢复 object 边界、纹理或深度细节；这不适合后续 object tracker。
 - 精确变更：仅 `PushCubeEORT-v1` 覆盖 inherited `base_camera` 的 width/height 为 256。保留相机位姿、FOV、物理、奖励、原始 PushCube-v1 和既有 128×128 pilot 不变；训练端仍可按 encoder 要求下采样。
 - 验证门槛：下次 GPU renderer smoke 必须确认 raw RGB/depth/segmentation 为 `(T+1,256,256,3/1/1)`，并重新记录显存与 object-pixel QA；本次不在繁忙 GPU 上启动新采集。
+
+## 2026-07-13 13:33:54 UTC — 256×256 EORT 真实采集 smoke
+
+- 原因：需实际确认分辨率改动经 GPU renderer、原生 motion planner、HDF5 与 v2 sidecar 后仍完整，而不是只通过语法检查。
+- 精确变更：未再修改代码；GPU 4 上使用新的不可覆盖目录采集 `NUM_TRAJ=1`，CPU PhysX + GPU renderer，随后运行既有 v2 派生器。
+- 证据：1/1 最终 success、`T=71`；raw RGB/depth/segmentation 均为 `(72,256,256,3/1/1)`；object mask 90–117 pixels（均值 95.8）、71/71 visible、71/71 segmentation-depth valid。GPU 4 采集前后 `nvidia-smi` 均报告 63,782 MiB used，且无 OOM；该数值不是峰值显存。

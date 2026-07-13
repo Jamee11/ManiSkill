@@ -132,3 +132,9 @@
 
 - 决策：后续 `PushCubeEORT-v1` 原始 RGB、depth 和 segmentation 从 128×128 改为 256×256。DiT4DiT 的 224×224 input resize 现在是下采样而非 128 的上采样；现有 pilot 保留为低分辨率 schema/出口回归数据，不混入未来 tracker 质量结论。
 - 未做：不重采已有 pilot、不修改 raw HDF5、不在本次繁忙 GPU 上启动 smoke 或批量收集。下一次显式 GPU smoke 需检查 256×256 streams、object mask pixel 数、sidecar/LeRobot shape、渲染显存和导出吞吐。
+
+### 2026-07-13 13:33:54 UTC — 256×256 raw-camera smoke
+
+- 设置：GPU 4、CPU PhysX + GPU renderer、原生 Panda motion planner，`NUM_TRAJ=1`；独立输出目录为 `/remote-home/jinminghao/datasets/maniskill_push_cube_objectcentric_v2_256_smoke_20260713T133354Z`。
+- 结果：1/1 最终 success，`T=71`。raw RGB/depth/segmentation 为 `(72,256,256,3)/(72,256,256,1)/(72,256,256,1)`；derived object mask 为 90–117 pixels、均值 95.8，71/71 object-visible 且 71/71 segmentation-depth valid。phase count 为 approach=48、contact=0、moving-in-contact=14、goal=9，符合 raw success 持续帧语义。
+- 分析：相同视角下 object mask 像素约为旧 128×128 smoke 的四倍，证明采集端不再依赖上采样。GPU 4 采前/后报告显存均为 63,782 MiB 且未 OOM，但没有采样峰值；批量前需保留峰值与吞吐 QA，也仍需遮挡和视觉域随机化覆盖。
