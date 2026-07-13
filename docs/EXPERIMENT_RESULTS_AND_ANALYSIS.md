@@ -121,3 +121,9 @@
 - interaction/未来标签 QA：physical-contact 为 236 帧；phase counts 为 approach=450、contact=7、moving-in-contact=229、goal=0。未来有效数为 horizon 1/4/8 分别 686/656/616。`goal=0` 是当前 rollout 未达到基于当前定义的 phase 终态，不是 final success 的否定，二者应保持分开解释。
 - LeRobot 出口 QA：`meta/info.json` 报告 10 episodes、686 frames；磁盘上有 10 个 episode Parquet 与 10 个 H.264 MP4，行数总和 686，与 metadata 一致。Parquet 仍是每步 `state(8)`、`oracle_current(17)`、`observation_valid(1)`、observed-local `action(7)`；视频 feature 为 `observation.images.front`、128×128、20 FPS。该验证证明数据文件的数目与时序总长完整，不表示 DiT4DiT 已训练或闭环成功。
 - 分析：这完成了“ManiSkill raw → v2 sidecar → LeRobot v2”多轨迹数据链路 gate。当前分布几乎没有遮挡且 object 像素非常小，故下一次采集必须先定义 camera/遮挡、漏检、ID-switch、深度噪声及 goal-phase 的覆盖计划；不能仅增加相同的无遮挡轨迹数量。另一次在本会话的 DiT4DiT import 在模块初始化后无 traceback 提前退出，尚未产生 dataset sample，因而 loader 复验仍是待办，不能用它否定已通过的 exporter 文件 QA。
+
+### 2026-07-13 13:24:00 UTC — phase terminal-label 语义修正
+
+- 发现：上述 pilot 的 raw `success[-1]=true`，但 `push_interaction_phase=3` 计数为零。根因是 sidecar 以 `goal_progress>=0.999` 近似终态，严格于原生 PushCube 成功容差。
+- 修正：phase 3 直接采用原生 action-aligned `success(T)`，且覆盖同帧的接触阶段。这保留连续 `goal_progress` 作诊断，但不再拿它定义任务成功。
+- 验证：更新了可构造的 v2 fixture，使末步 success 必须导出 phase 3。旧 pilot NPZ 保持不可变；同一 raw HDF5 已重新派生至 `derived_success_phase`。10 条、686 帧逐元素满足 `phase==3` 等于 raw `success`；phase counts 变为 approach=450、contact=7、moving-in-contact=144、goal=85。85 是 environment success 维持为 true 的帧数，不应误读为只有 10 个 terminal frame。

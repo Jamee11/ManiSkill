@@ -136,7 +136,7 @@ class PushCubeEORTTest(unittest.TestCase):
             self.assertFalse(manifest["eef_transition_local"]["controller_command"])
             with np.load(root / "derived" / "traj_0.npz") as labels:
                 self.assertEqual(labels["physical_contact"].tolist(), [[False], [True], [True]])
-                self.assertEqual(labels["push_interaction_phase"].tolist(), [[0], [2], [2]])
+                self.assertEqual(labels["push_interaction_phase"].tolist(), [[0], [2], [3]])
                 self.assertEqual(labels["object_future_delta_pos"].shape, (3, 3, 3))
                 self.assertEqual(labels["object_future_valid"].tolist(), [[True, False, False], [True, False, False], [True, False, False]])
                 np.testing.assert_allclose(labels["object_future_delta_pos"][:, 0, 0], [0.5, 0.5, 0.0])

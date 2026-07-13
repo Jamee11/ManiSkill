@@ -341,9 +341,9 @@ def derive_trajectory_objectcentric_v2(
     interaction_phase = np.zeros(steps, dtype=np.int8)
     interaction_phase[physical_contact] = 1
     interaction_phase[physical_contact & (object_speed > 1e-4)] = 2
-    interaction_phase[
-        ~physical_contact & (arrays["goal_progress"][:, 0] >= 0.999)
-    ] = 3
+    # Native task success is the authoritative terminal-phase label.  Geometric
+    # progress is deliberately not used here because PushCube success has a tolerance.
+    interaction_phase[arrays["success"]] = 3
     arrays.update(
         {
             "object_linear_velocity": object_linear_velocity[:-1],

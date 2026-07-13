@@ -117,3 +117,9 @@
 - 证据：10/10 最终 success，合计 686 action-aligned frames；10 个 Parquet、10 个 H.264 128×128/20 FPS MP4 与 `meta/info.json` 的 10 episodes/686 frames 一致。逐轨迹长度为 `[71,72,64,74,66,77,62,69,63,68]`。
 - 质量结论：object/goal visibility 和 segmentation-depth valid 均为 1.0；object mask fraction 为 0.00098–0.00189，goal 为 0.02185–0.04120；segmentation-depth surface-centroid error 的均值为 1.80 cm、p95 为 2.09 cm。真实接触帧 236；phase 计数为 approach=450、contact=7、moving-in-contact=229、goal=0。
 - 边界：全量可见和没有 goal phase 说明这只是“链路通畅”pilot，不是遮挡/终态分布覆盖，更不足以启动训练或形成 sim2real 结论。数据路径记录在实验分析中，二进制数据不提交 Git。
+
+## 2026-07-13 13:24:00 UTC — PushCube interaction phase 与原生 success 对齐
+
+- 原因：10 条最终成功轨迹的 `phase=3` 为零；原实现以 `goal_progress>=0.999` 判终态，比 PushCube 原生成功容差严格，造成语义不一致。
+- 精确变更：v2 导出器仅将 terminal phase 改为使用已有的 action-aligned raw `success(T)`；phase 3 优先于接触/运动阶段。未改变物理、成功条件、进度字段、future 标签或 policy 输入字段。
+- 验证：离线 v2 fixture 末步 native success 现在导出 phase 3，前两步仍为 approach/moving-contact；10-trajectory pilot 已重新派生至独立 `derived_success_phase`，逐帧断言 `phase==3` 等于 raw `success`，通过。
