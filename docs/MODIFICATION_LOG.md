@@ -167,3 +167,10 @@
 - 数据与 QA：三个 split 各为 10/10 native-success episodes、686 action-aligned frames、10 个 Parquet 和 10 个 MP4；stored front video feature 都是 `[256,256,3]`。occlusion split 有 163/686 `object_visible=false` 帧，逐帧检验这些帧的 17D continuous oracle condition 均为零；fixed/camera-random split 无不可见帧。camera split 的外参在 episode 内静态、跨 episode 变化；occluder flag 仍只作诊断而不作模型输入。
 - 训练接口验证：真实 DiT4DiT loader 初始化三组长度 `[686,686,686]`，mixture epoch 为 2,058 frames，并输出 `state (1,64)`、`action (8,32)` 和由 256px 下采样的 `image (3,224,224)`。
 - 边界：这只是 30 条 PushCube 的数据/加载器 gate，visible-frame geometry 仍是 simulator oracle upper bound，未训练或闭环评测；不得据此声称 tracker、sim2real 或遮挡鲁棒性。
+
+## 2026-07-13 14:21:32 UTC — goal RGB-D 几何 tracker supervision
+
+- 原因：现有 sidecar 只提供 object 的 segmentation-depth visible-surface centroid；后续非-GT track 要计算 object-to-goal relation 时，goal 也必须有同一观测几何契约，不能退回 simulator goal position。
+- 精确变更：v2 deriver 现在对 goal actor 复用既有 mask/depth/intrinsic/extrinsic back-projection，新增 `goal_segdepth_centroid_world(T,3)`、`goal_segdepth_valid(T,1)` 与相对于现有 `goal_pos` 的 `goal_segdepth_centroid_error(T,1)`。未修改环境、raw HDF5、policy export 或任何 action input；字段仍显式为 oracle actor-mask supervision。
+- 验证：2×2 synthetic test 覆盖可见 goal 的 centroid/valid；在保留的 256px occlusion raw HDF5 上重派生到独立目录，10 条/686 帧均得到有限 `(T,3)` goal centroid 和 valid=true，无效 centroid 非零数为零。旧 derived 目录保持不变。
+- 边界：depth centroid 是可见表面，不是物体/目标几何中心，更不是 learned detection；它只建立日后 detector/mask 输出可替换的输入契约。

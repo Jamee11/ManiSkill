@@ -161,6 +161,11 @@ class PushCubeEORTTest(unittest.TestCase):
                 self.assertEqual(labels["goal_mask_pixels"].tolist(), [[1], [2], [1]])
                 self.assertEqual(labels["goal_bbox_xyxy"].tolist(), [[1, 0, 2, 1], [0, 0, 2, 1], [1, 1, 2, 2]])
                 np.testing.assert_allclose(labels["goal_mask_centroid_uv"], [[1, 0], [0.5, 0], [1, 1]])
+                self.assertEqual(labels["goal_segdepth_valid"].tolist(), [[True], [True], [True]])
+                np.testing.assert_allclose(
+                    labels["goal_segdepth_centroid_world"],
+                    [[1, 0, 1], [0.5, 0, 1], [1, 1, 1]],
+                )
                 np.testing.assert_allclose(labels["eef_transition_local"][:, :6], 0.0)
                 np.testing.assert_allclose(labels["eef_transition_local"][:, 6], [0.0, 0.5, 1.0])
 

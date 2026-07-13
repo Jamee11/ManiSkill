@@ -32,6 +32,7 @@ v2 不替换 v1，而是使用独立的 `PushCubeEORT-v1` 和输出目录。它�
 - `object_future_delta_pos` / `object_future_delta_rotvec` `(T,3,3)`，默认 horizons 为 `[1,4,8]` action steps；
 - `object_future_valid` `(T,3)`，末尾 horizon 不足时为 false，数值零不代表真值。
 - `object_segmentation_id` / `goal_segmentation_id` `(1,)`，分别映射当前 task object/goal 到 raw segmentation actor label；`object_mask_pixels` / `goal_mask_pixels`、`object_visibility_fraction` / `goal_visibility_fraction`、`object_visible` / `goal_visible` 均为 `(T,1)`，只使用 action 前 observation。`object_bbox_xyxy` / `goal_bbox_xyxy` `(T,4)` 是 `[x_min,y_min,x_max_exclusive,y_max_exclusive]` 像素框，`object_mask_centroid_uv` / `goal_mask_centroid_uv` `(T,2)` 是 mask 像素均值；完全遮挡时二者全零、`visible=false`，不是导出失败。raw segmentation 仍是唯一 mask source，sidecar 不重复写 mask。旧 v2 raw 不含 ID 时仍可导出原标签，但 manifest 标记 `segmentation_visibility=false`。
+- `object_segdepth_centroid_world` / `goal_segdepth_centroid_world` `(T,3)`：各自 actor-mask 像素由毫米 depth 与 CV intrinsic/extrinsic 回投的可见表面 centroid；对应 `*_segdepth_valid(T,1)` 和相对于 simulator center/goal 的 `*_segdepth_centroid_error(T,1)` 只作 oracle tracker supervision 与 QA。它们不是 object/goal pose，也不进入当前 action policy。
 - `PushCubeEORTOccluded-v1` 额外导出 `occluder_active(T,1)` bool，表示 visual-only occluder 是否存在；它仅用于可见率 QA/split，manifest 标为 `policy_input=false`，绝不能作为 tracker 或 action policy 输入。
 - `eef_transition_local` `(T,7)`：由 action 前后 TCP pose 的实际变化导出 `[Δxyz_local, Δrotvec_local, gripper_open_fraction]`。它是 observed transition，manifest 明确标为 `controller_command=false`，并非 raw Panda joint command 的替代。
 

@@ -342,6 +342,9 @@ def derive_trajectory_objectcentric_v2(
         goal_mask_pixels, goal_visibility_fraction, goal_bbox_xyxy, goal_mask_centroid_uv = _segmentation_visibility(
             group, camera, steps, goal_segmentation_id
         )
+        goal_segdepth_centroid_world, goal_segdepth_valid = _segdepth_centroid_world(
+            group, camera, steps, goal_segmentation_id
+        )
         visibility_arrays = {
             "object_segmentation_id": np.asarray([object_segmentation_id], dtype=np.int32),
             "goal_segmentation_id": np.asarray([goal_segmentation_id], dtype=np.int32),
@@ -362,6 +365,13 @@ def derive_trajectory_objectcentric_v2(
             "goal_visible": goal_mask_pixels > 0,
             "goal_bbox_xyxy": goal_bbox_xyxy,
             "goal_mask_centroid_uv": goal_mask_centroid_uv,
+            "goal_segdepth_centroid_world": goal_segdepth_centroid_world,
+            "goal_segdepth_valid": goal_segdepth_valid,
+            "goal_segdepth_centroid_error": np.where(
+                goal_segdepth_valid,
+                np.linalg.norm(goal_segdepth_centroid_world - arrays["goal_pos"], axis=1, keepdims=True),
+                0.0,
+            ).astype(np.float32),
         }
     future_pos_delta, future_rotvec, future_valid = _future_object_transitions(
         object_pose, steps, future_horizons
@@ -487,7 +497,7 @@ def derive_dataset(
                     "fraction": "matching pixels divided by camera image pixels",
                     "bbox_xyxy": "[x_min,y_min,x_max_exclusive,y_max_exclusive] pixels; all zeros when invisible",
                     "mask_centroid_uv": "mean [u,v] mask pixel coordinate; all zeros when invisible",
-                    "segdepth_centroid": "segmentation actor pixels back-projected from millimeter depth with intrinsic_cv/extrinsic_cv; oracle actor ID only",
+                    "segdepth_centroid": "object and goal actor pixels back-projected from millimeter depth with intrinsic_cv/extrinsic_cv; oracle actor ID only",
                 }
             if "occluder_active" in arrays:
                 records[-1]["occluder_active"] = {
