@@ -49,3 +49,9 @@
 - 精确变更：未修改代码或配置；使用调用方显式指定的 GPU 4，写入新的单轨迹数据目录并运行已有 v2 采集、派生和逐元素对齐检查。
 - 证据：1/1 成功轨迹有 `T=71` action 与 `T+1=72` 原始观测；速度、net force 和 force-norm 全部有限，derived 前 `T` 帧与 raw 完全一致，接触标签逐帧匹配 force-norm 阈值。
 - 明确不做：不把单条 oracle 轨迹用于训练结论，不开始批量采集，不将 simulator GT 视为部署时感知。
+
+## 2026-07-13 08:00:15 UTC — 跨 Franka/Piper EORT 契约
+
+- 原因：当前 raw `(T,8)` Panda joint action 与跨机器人末端控制不等价；若不先明确 frame、mask、object slot 和 command/transition 的区别，后续会把 simulator 的状态变化误当作真实机器人命令。
+- 精确变更：新增 `docs/EORT_CROSS_EMBODIMENT_CONTRACT_CN.md`，规定以具名 object token、task-frame 标定和最多双臂的局部 EEF 7D canonical command 为目标契约，并记录 DiT4DiT、X-WAM、τ₀-WM、DreamDojo 的分工和验收门槛。
+- 明确不做：不修改现有 v2 schema、采集逻辑、模型结构或训练配置；该文档不是已实现功能，也不使当前 raw joint action 自动成为 canonical command。
