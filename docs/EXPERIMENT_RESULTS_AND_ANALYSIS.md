@@ -176,3 +176,9 @@
 - 设置：为避免未来 track-to-action 接口在 goal 一侧偷用 simulator position，v2 deriver 对已有 goal actor ID、raw segmentation、毫米 depth、`intrinsic_cv`、`extrinsic_cv` 使用与 object 完全相同的回投流程。
 - 结果：新增 `goal_segdepth_centroid_world(T,3)`、`goal_segdepth_valid(T,1)` 和只供 QA 的 center error。2×2 fixture 验证单/双像素 goal centroid；保留的 256px occlusion raw 10 条、686 帧重派生后 goal 全部可见且有效，所有 invalid centroid 保持零。
 - 分析：object 与 goal 均已有“2D mask/bbox/centroid + depth back-projected surface geometry”的同构 oracle supervision，可作为 learned detector/mask 输出的替换接口。它不应当被误称为 pose，且当前 DiT4DiT policy 不读取这些新字段；下一步仍须以 RGB-D predictor 取代 actor ID。
+
+### 2026-07-15 UTC — object-centric overlay preview QA
+
+- 设置：未启动仿真或 GPU，使用现有 fixed-camera 256px pilot 的 raw HDF5 和 `derived_goal_segdepth`，渲染前两条 trajectory 共 143 action-aligned RGB 帧。
+- 结果：生成 `/remote-home/jinminghao/datasets/maniskill_eort_previews/push_cube_fixed_objectcentric_preview.mp4` 及 JSON summary。每帧叠加 derived object/goal bbox、mask centroid、可见性、当前 phase 与 force-contact，不显示 raw segmentation ID 或 simulator pose。
+- 分析：视频确认了预览工具读取的是同一 T 对齐 sidecar，且 object 小框、goal 大框、phase/contact 文本均可辨认。这是格式/时间对齐 QA，不是新数据、模型评测或 policy rollout；大规模目标机器仍须在每个 shard 采集后检查其对应 preview。

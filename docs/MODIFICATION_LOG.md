@@ -1,5 +1,13 @@
 # Modification Log
 
+## 2026-07-15 UTC - Add non-overwriting large-scale EORT collection pipeline
+
+- Reason: The prior 30 rendered PushCube pilot trajectories only smoke-tested the object-centric data path.  A reproducible external-GPU collection command is needed before tracker or DiT4DiT policy training can be scheduled, while preserving the raw simulator record as the source of truth.
+- Change: Added an opt-in collection wrapper that produces disjoint fixed/camera-random/occluded PushCube (or, after its required smoke, PickCube) shards, then derives the existing object-centric v2 sidecar, emits an annotated 256px RGB QA preview, and exports separate LeRobot oracle/proxy/corrupted-track training views using the existing DiT4DiT converter.  Extended the official Panda motion-planning runner with explicit start seeds and an adjacent successful-trajectory seed manifest.
+- Scope: Additive collection, provenance, and visualization support only.  Raw HDF5 plus v2 sidecar remains authoritative; no environment observation, label schema, policy input, model architecture, controller command, existing dataset, or default training configuration was replaced.
+- Safety: Outputs reject pre-existing shard, derived, preview, and converter destinations.  Split/variant seed blocks are disjoint.  The wrapper keeps CPU physics with the existing GPU renderer selection mechanism; it does not attempt CPU rendering or automatic GPU selection.
+- Verification: Shell syntax and dry-run planning checks passed; the preview unit test passed; an existing 256px PushCube pilot rendered a 143-frame annotated MP4.  This is not a target-GPU batch collection smoke and does not clear the PickCube visual-split prerequisite.
+
 ## 2026-07-15 UTC — Shared visual generalization variants for PickCube EORT
 
 - 原因：仅固定相机的 PickCube 无法作为与 PushCube 对称的跨任务泛化/感知鲁棒性评测；camera shift 和 visual-only occlusion 必须保持不影响原生物理与 motion planner。

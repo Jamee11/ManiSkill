@@ -71,3 +71,68 @@ Smoke 通过后，将 `NUM_TRAJ=10`。脚本拒绝覆盖已有 raw HDF5 或 `der
 ```
 
 该检查验证标签的 `T+1`/`T` 对齐、progress 和下一帧物体平移；批量采集前仍须核对 `docs/思考与隐患.md`。
+
+## 大规模 object-centric v2 采集、可视化与 DiT4DiT 导出
+
+使用 `scripts/eort/collect_large_objectcentric_v2.sh`。它不改变已经验证的格式，而是为每个独立 shard 串联：
+
+```text
+raw HDF5 (T+1, RGB-D-segmentation-state) + seed_manifest
+  -> derived_goal_segdepth/*.npz + manifest.jsonl + summary.json
+  -> qa/*_preview.mp4 + JSON（bbox/质心/visibility/phase/contact overlay）
+  -> LeRobot oracle / segdepth_proxy / track_corrupt 三个训练视图
+```
+
+HDF5+NPZ 是可审计的 object-centric 真值来源；LeRobot 只是 DiT4DiT 当前 loader 的训练视图。tracker 读取前者的 RGB-D/标定，DiT4DiT action policy 读取后者的 RGB、state、7D observed local EEF transition。任何一边都不以 LeRobot 覆盖 raw 或 sidecar。
+
+先在目标机器上只检查计划；这不会创建目录、轨迹、视频或 LeRobot 数据：
+
+```bash
+cd /remote-home/jinminghao/WAMs/ManiSkill
+
+MANISKILL_EORT_COLLECTION_ROOT=/remote-home/jinminghao/datasets/maniskill_eort_large_v2 \
+MANISKILL_EORT_TASK=push_cube \
+MANISKILL_EORT_SPLIT=train \
+NUM_TRAJ=500 \
+MANISKILL_EORT_CUDA_VISIBLE_DEVICES=4 \
+DRY_RUN=1 \
+bash scripts/eort/collect_large_objectcentric_v2.sh
+```
+
+确认后删除 `DRY_RUN=1` 才会采集。每次调用对每个 variant 采 `NUM_TRAJ` 条**独立**成功物理轨迹；例如三个 variant 加 `NUM_TRAJ=500` 是 1,500 条独立物理轨迹，不是同一条轨迹三次重渲染。
+
+```bash
+MANISKILL_EORT_COLLECTION_ROOT=/remote-home/jinminghao/datasets/maniskill_eort_large_v2 \
+MANISKILL_EORT_TASK=push_cube \
+MANISKILL_EORT_SPLIT=train \
+MANISKILL_EORT_VARIANTS=fixed,camera_rand,occluded \
+NUM_TRAJ=500 \
+MANISKILL_EORT_CUDA_VISIBLE_DEVICES=4 \
+bash scripts/eort/collect_large_objectcentric_v2.sh
+```
+
+默认 seed 区间为 train=`0`、val=`1000000`、test=`2000000`；同一命令内的 variant 再以 100,000 的 block 分开。raw 旁的 `*.seed_manifest.json` 记录每条保存 trajectory 对应的实际成功 task seed。不要手工复用 `MANISKILL_EORT_START_SEED` 或减小 `MANISKILL_EORT_SEED_BLOCK_SIZE`；否则 split 独立性失效。每个输出目录均拒绝覆盖，重复任务应使用新的 collection root。
+
+建议第一批将 train/val/test 分别调用三次。先用 PushCube `500/100/200` 每 variant 跑完整链路，再根据 oracle gate 决定是否扩大到每 variant `1000+`；PickCube 只能在其 visual GPU smoke 后按同样协议采集。当前脚本默认 CPU PhysX + 指定 GPU renderer，单进程采集；不要为增速启用多 renderer 进程。
+
+### 训练根目录对应关系
+
+完成三个 variant 后，现有 DiT4DiT named mixture 无需改动。只覆盖其数据根：
+
+```text
+.../maniskill_eort_large_v2/lerobot/train/oracle
+.../maniskill_eort_large_v2/lerobot/train/segdepth_proxy
+.../maniskill_eort_large_v2/lerobot/train/track_corrupt
+```
+
+它们分别包含既有名称的 `maniskill_eort_{push,pick}_cube_256_{fixed,camera_rand,occluded}_..._lerobot` 数据集。DiT4DiT 仍使用 `maniskill_eort_*_256_*_splits_lerobot` mixture；不需要新 dataset loader 或修改 policy schema。val/test 根用相同 mixture 名称做数据/离线评估，不可与 train root 混用。
+
+tracker 不读 LeRobot 视频，因为它需要 raw metric depth 与 camera calibration。将三条 train raw/sidecar 对传给既有 tracker launcher的 `SOURCES` 环境变量，并只用同一 physical trajectory 分组切分；不得把 train raw 与 val/test raw 拼在一起训练。
+
+### 预览视频
+
+每个 shard 自动写 `qa/*_preview.mp4`，默认拼接前三条 trajectory 的 raw RGB 并叠加 derived labels。已有 pilot 的实际示例是：
+
+`/remote-home/jinminghao/datasets/maniskill_eort_previews/push_cube_fixed_objectcentric_preview.mp4`
+
+预览用于检查格式和时间对齐，不是 policy rollout 视频，也不能替代逐 split 的 visibility、seed、成功率和 LeRobot loader QA。

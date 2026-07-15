@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import os
+import json
 from copy import deepcopy
 import time
 import argparse
@@ -45,6 +46,8 @@ def parse_args(args=None):
     parser.add_argument("--shader", default="default", type=str, help="Change shader used for rendering. Default is 'default' which is very fast. Can also be 'rt' for ray tracing and generating photo-realistic renders. Can also be 'rt-fast' for a faster but lower quality ray-traced renderer")
     parser.add_argument("--record-dir", type=str, default="demos", help="where to save the recorded trajectories")
     parser.add_argument("--num-procs", type=int, default=1, help="Number of processes to use to help parallelize the trajectory replay process. This uses CPU multiprocessing and only works with the CPU simulation backend at the moment.")
+    parser.add_argument("--start-seed", type=int, default=0, help="First deterministic task seed. Useful for disjoint collection shards.")
+    parser.add_argument("--save-seed-manifest", action="store_true", help="Write successful trajectory-to-task-seed records next to the HDF5 file.")
     return parser.parse_args()
 
 def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
@@ -83,12 +86,14 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     solve = MP_SOLUTIONS[env_id]
     print(f"Motion Planning Running on {env_id}")
     pbar = tqdm(range(args.num_traj), desc=f"proc_id: {proc_id}")
-    seed = start_seed
+    seed = start_seed + args.start_seed
     successes = []
     solution_episode_lengths = []
     failed_motion_plans = 0
     passed = 0
+    saved_seed_records = []
     while True:
+        attempted_seed = seed
         try:
             res = solve(env, seed=seed, debug=False, vis=True if args.vis else False)
         except Exception as e:
@@ -113,6 +118,9 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             env.flush_trajectory()
             if args.save_video:
                 env.flush_video()
+            saved_seed_records.append(
+                {"trajectory": f"traj_{passed}", "seed": attempted_seed, "success": bool(success)}
+            )
             pbar.update(1)
             pbar.set_postfix(
                 dict(
@@ -128,6 +136,19 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             if passed == args.num_traj:
                 break
     env.close()
+    if args.save_seed_manifest:
+        seed_manifest_path = osp.splitext(output_h5_path)[0] + ".seed_manifest.json"
+        with open(seed_manifest_path, "w", encoding="utf-8") as file:
+            json.dump(
+                {
+                    "env_id": env_id,
+                    "start_seed": start_seed + args.start_seed,
+                    "only_count_success": args.only_count_success,
+                    "saved_trajectory_seeds": saved_seed_records,
+                },
+                file,
+                indent=2,
+            )
     return output_h5_path
 
 def main(args):
