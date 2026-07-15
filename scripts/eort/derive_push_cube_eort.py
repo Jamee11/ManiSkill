@@ -21,6 +21,8 @@ OBJECTCENTRIC_V2_ENV_IDS = (
     "PushCubeEORTCameraRand-v1",
     "PushCubeEORTOccluded-v1",
     "PickCubeEORT-v1",
+    "PickCubeEORTCameraRand-v1",
+    "PickCubeEORTOccluded-v1",
 )
 DEFAULT_FUTURE_HORIZONS = (1, 4, 8)
 
@@ -34,20 +36,23 @@ PUSH_CUBE_TASK_SPEC = {
         "3": "native_task_success",
     },
 }
+PICK_CUBE_TASK_SPEC = {
+    "schema_version": PICK_CUBE_OBJECTCENTRIC_V2_SCHEMA_VERSION,
+    "phase_key": "pick_interaction_phase",
+    "phase_labels": {
+        "0": "approach",
+        "1": "measured_contact",
+        "2": "native_grasp_detected",
+        "3": "native_task_success",
+    },
+}
 OBJECTCENTRIC_V2_TASK_SPECS = {
     "PushCubeEORT-v1": PUSH_CUBE_TASK_SPEC,
     "PushCubeEORTCameraRand-v1": PUSH_CUBE_TASK_SPEC,
     "PushCubeEORTOccluded-v1": PUSH_CUBE_TASK_SPEC,
-    "PickCubeEORT-v1": {
-        "schema_version": PICK_CUBE_OBJECTCENTRIC_V2_SCHEMA_VERSION,
-        "phase_key": "pick_interaction_phase",
-        "phase_labels": {
-            "0": "approach",
-            "1": "measured_contact",
-            "2": "native_grasp_detected",
-            "3": "native_task_success",
-        },
-    },
+    "PickCubeEORT-v1": PICK_CUBE_TASK_SPEC,
+    "PickCubeEORTCameraRand-v1": PICK_CUBE_TASK_SPEC,
+    "PickCubeEORTOccluded-v1": PICK_CUBE_TASK_SPEC,
 }
 
 

@@ -217,11 +217,19 @@ class PushCubeEORTTest(unittest.TestCase):
     def test_pickcube_eort_is_registered_with_visual_goal_marker(self):
         import gymnasium as gym
         import mani_skill.envs.tasks  # noqa: F401
-        from mani_skill.envs.tasks.tabletop.pick_cube_eort import PickCubeEORTEnv
+        from mani_skill.envs.tasks.tabletop.pick_cube_eort import (
+            PickCubeEORTCameraRandEnv,
+            PickCubeEORTEnv,
+            PickCubeEORTOccludedEnv,
+        )
 
         self.assertEqual(gym.spec("PickCubeEORT-v1").id, "PickCubeEORT-v1")
+        self.assertEqual(gym.spec("PickCubeEORTCameraRand-v1").id, "PickCubeEORTCameraRand-v1")
+        self.assertEqual(gym.spec("PickCubeEORTOccluded-v1").id, "PickCubeEORTOccluded-v1")
         self.assertEqual(PickCubeEORTEnv.SUPPORTED_ROBOTS, ["panda"])
         self.assertEqual(PickCubeEORTEnv.EORT_CAMERA_RESOLUTION, 256)
+        self.assertEqual(PickCubeEORTCameraRandEnv.CAMERA_EYE_JITTER, (0.08, 0.08, 0.05))
+        self.assertEqual(PickCubeEORTOccludedEnv.OCCLUDER_PROBABILITY, 0.5)
 
 
 if __name__ == "__main__":

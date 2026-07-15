@@ -7,6 +7,10 @@ from typing import Any
 import torch
 
 from mani_skill.envs.tasks.tabletop.pick_cube import PickCubeEnv
+from mani_skill.envs.tasks.tabletop.eort_visual_variants import (
+    EORTCameraRandomizationMixin,
+    EORTVisualOcclusionMixin,
+)
 from mani_skill.utils.registration import register_env
 
 
@@ -56,3 +60,13 @@ class PickCubeEORTEnv(PickCubeEnv):
             ),
         )
         return obs
+
+
+@register_env("PickCubeEORTCameraRand-v1", max_episode_steps=50)
+class PickCubeEORTCameraRandEnv(EORTCameraRandomizationMixin, PickCubeEORTEnv):
+    """PickCube EORT with a fixed-within-episode randomized external camera."""
+
+
+@register_env("PickCubeEORTOccluded-v1", max_episode_steps=50)
+class PickCubeEORTOccludedEnv(EORTVisualOcclusionMixin, PickCubeEORTEnv):
+    """PickCube EORT with a visual-only static occluder in half of episodes."""

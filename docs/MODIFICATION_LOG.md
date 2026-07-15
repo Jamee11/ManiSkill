@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-15 UTC — Shared visual generalization variants for PickCube EORT
+
+- 原因：仅固定相机的 PickCube 无法作为与 PushCube 对称的跨任务泛化/感知鲁棒性评测；camera shift 和 visual-only occlusion 必须保持不影响原生物理与 motion planner。
+- 精确变更：将已验证的 PushCube per-episode camera-random 和 non-colliding occluder 抽为共享 mixin；PushCube 的注册 ID 和默认参数不变。新增 `PickCubeEORTCameraRand-v1` 与 `PickCubeEORTOccluded-v1`，映射到原生 `solvePickCube`，并注册 Pick task-specific schema/phase 导出支持。
+- 风险约束：新增 Pick variants 尚未 GPU smoke；`occluder_active` 继续只作 QA、不进入 policy，camera random 固定于 episode 内；不采集、不训练、不修改 physics/reward/success。
+
 ## 2026-07-15 UTC — PickCube EORT task-specific collection scaffold
 
 - 原因：PushCube 只覆盖接触推动，无法验证 object-centric 表示在“接近—双指抓取—搬运—放置”的接触阶段是否仍有用；PickCube 是保留 Panda 原生 motion planner 的最小第二任务。
