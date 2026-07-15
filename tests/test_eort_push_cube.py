@@ -98,6 +98,7 @@ class PushCubeEORTTest(unittest.TestCase):
                 extra.create_dataset("obj_segmentation_id", data=np.full((4, 1), 7, dtype=np.int32))
                 extra.create_dataset("goal_segmentation_id", data=np.full((4, 1), 9, dtype=np.int32))
                 extra.create_dataset("occluder_active", data=np.array([[False], [True], [True], [True]]))
+                extra.create_dataset("is_grasped", data=np.array([[False], [True], [True], [True]]))
                 camera = obs.create_group("sensor_data").create_group("base_camera")
                 camera.create_dataset("rgb", data=np.zeros((4, 2, 2, 3), dtype=np.uint8))
                 camera.create_dataset("depth", data=np.full((4, 2, 2, 1), 1000, dtype=np.uint16))
@@ -169,6 +170,18 @@ class PushCubeEORTTest(unittest.TestCase):
                 np.testing.assert_allclose(labels["eef_transition_local"][:, :6], 0.0)
                 np.testing.assert_allclose(labels["eef_transition_local"][:, 6], [0.0, 0.5, 1.0])
 
+            trajectory.with_suffix(".json").write_text(
+                json.dumps({"env_info": {"env_id": "PickCubeEORT-v1"}}), encoding="utf-8"
+            )
+            pick_summary = module.derive_dataset(
+                trajectory, root / "derived_pick", schema="objectcentric_v2"
+            )
+            self.assertEqual(pick_summary["schema_version"], module.PICK_CUBE_OBJECTCENTRIC_V2_SCHEMA_VERSION)
+            pick_manifest = json.loads((root / "derived_pick" / "manifest.jsonl").read_text())
+            self.assertEqual(pick_manifest["pick_interaction_phase_labels"]["2"], "native_grasp_detected")
+            with np.load(root / "derived_pick" / "traj_0.npz") as labels:
+                self.assertEqual(labels["pick_interaction_phase"].tolist(), [[0], [2], [3]])
+
     def test_local_eef_transition_uses_current_eef_frame(self):
         module = load_module()
         quarter_turn = np.sqrt(0.5)
@@ -200,6 +213,15 @@ class PushCubeEORTTest(unittest.TestCase):
         self.assertEqual(PushCubeEORTEnv.EORT_CAMERA_RESOLUTION, 256)
         self.assertEqual(PushCubeEORTCameraRandEnv.CAMERA_EYE_JITTER, (0.08, 0.08, 0.05))
         self.assertEqual(PushCubeEORTOccludedEnv.OCCLUDER_PROBABILITY, 0.5)
+
+    def test_pickcube_eort_is_registered_with_visual_goal_marker(self):
+        import gymnasium as gym
+        import mani_skill.envs.tasks  # noqa: F401
+        from mani_skill.envs.tasks.tabletop.pick_cube_eort import PickCubeEORTEnv
+
+        self.assertEqual(gym.spec("PickCubeEORT-v1").id, "PickCubeEORT-v1")
+        self.assertEqual(PickCubeEORTEnv.SUPPORTED_ROBOTS, ["panda"])
+        self.assertEqual(PickCubeEORTEnv.EORT_CAMERA_RESOLUTION, 256)
 
 
 if __name__ == "__main__":

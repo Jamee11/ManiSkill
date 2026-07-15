@@ -14,13 +14,41 @@ import numpy as np
 
 SCHEMA_VERSION = "maniskill_push_cube_eort_oracle_v1"
 OBJECTCENTRIC_V2_SCHEMA_VERSION = "maniskill_push_cube_objectcentric_oracle_v2"
+PICK_CUBE_OBJECTCENTRIC_V2_SCHEMA_VERSION = "maniskill_pick_cube_objectcentric_oracle_v2"
 OBJECTCENTRIC_V2_ENV_ID = "PushCubeEORT-v1"
 OBJECTCENTRIC_V2_ENV_IDS = (
     OBJECTCENTRIC_V2_ENV_ID,
     "PushCubeEORTCameraRand-v1",
     "PushCubeEORTOccluded-v1",
+    "PickCubeEORT-v1",
 )
 DEFAULT_FUTURE_HORIZONS = (1, 4, 8)
+
+PUSH_CUBE_TASK_SPEC = {
+    "schema_version": OBJECTCENTRIC_V2_SCHEMA_VERSION,
+    "phase_key": "push_interaction_phase",
+    "phase_labels": {
+        "0": "approach",
+        "1": "measured_contact",
+        "2": "measured_contact_while_object_moves",
+        "3": "native_task_success",
+    },
+}
+OBJECTCENTRIC_V2_TASK_SPECS = {
+    "PushCubeEORT-v1": PUSH_CUBE_TASK_SPEC,
+    "PushCubeEORTCameraRand-v1": PUSH_CUBE_TASK_SPEC,
+    "PushCubeEORTOccluded-v1": PUSH_CUBE_TASK_SPEC,
+    "PickCubeEORT-v1": {
+        "schema_version": PICK_CUBE_OBJECTCENTRIC_V2_SCHEMA_VERSION,
+        "phase_key": "pick_interaction_phase",
+        "phase_labels": {
+            "0": "approach",
+            "1": "measured_contact",
+            "2": "native_grasp_detected",
+            "3": "native_task_success",
+        },
+    },
+}
 
 
 def _dataset(group: h5py.Group, path: str) -> h5py.Dataset:
@@ -63,6 +91,13 @@ def _optional_bool_observation(group: h5py.Group, path: str, steps: int) -> np.n
     if array.shape != (steps + 1, 1):
         raise ValueError(f"{group.name}/{path} must have shape {(steps + 1, 1)}, got {array.shape}")
     return array[:-1]
+
+
+def _required_bool_observation(group: h5py.Group, path: str, steps: int) -> np.ndarray:
+    array = _optional_bool_observation(group, path, steps)
+    if array is None:
+        raise ValueError(f"Missing required dataset: {group.name}/{path}")
+    return array
 
 
 def _segmentation_visibility(
@@ -298,6 +333,7 @@ def derive_trajectory_objectcentric_v2(
     group: h5py.Group,
     camera: str,
     *,
+    task: str,
     future_horizons: tuple[int, ...],
     contact_force_threshold: float,
 ) -> dict[str, np.ndarray]:
@@ -378,12 +414,16 @@ def derive_trajectory_objectcentric_v2(
     )
     contact_force = robot_obj_contact_force[:-1]
     physical_contact = robot_obj_contact_force_norm[:-1, 0] > contact_force_threshold
-    object_speed = np.linalg.norm(object_linear_velocity[:-1], axis=1)
+    task_spec = OBJECTCENTRIC_V2_TASK_SPECS[task]
     interaction_phase = np.zeros(steps, dtype=np.int8)
     interaction_phase[physical_contact] = 1
-    interaction_phase[physical_contact & (object_speed > 1e-4)] = 2
-    # Native task success is the authoritative terminal-phase label.  Geometric
-    # progress is deliberately not used here because PushCube success has a tolerance.
+    if task.startswith("PushCube"):
+        object_speed = np.linalg.norm(object_linear_velocity[:-1], axis=1)
+        interaction_phase[physical_contact & (object_speed > 1e-4)] = 2
+    else:
+        # Native Panda grasp detection is an oracle label, not a policy input.
+        interaction_phase[_required_bool_observation(group, "obs/extra/is_grasped", steps)[:, 0]] = 2
+    # Native task success is authoritative; geometric progress is only diagnostic.
     interaction_phase[arrays["success"]] = 3
     arrays.update(
         {
@@ -395,7 +435,7 @@ def derive_trajectory_objectcentric_v2(
             "robot_obj_contact_force": contact_force,
             "robot_obj_contact_force_norm": robot_obj_contact_force_norm[:-1],
             "physical_contact": physical_contact[:, None],
-            "push_interaction_phase": interaction_phase[:, None],
+            task_spec["phase_key"]: interaction_phase[:, None],
             "ee_to_object_rotvec": _relative_rotation_rotvec(
                 tcp_pose[:-1, 3:], object_pose[:-1, 3:]
             ),
@@ -438,10 +478,12 @@ def derive_dataset(
             )
         if contact_force_threshold < 0:
             raise ValueError("contact_force_threshold must be non-negative")
-        schema_version = OBJECTCENTRIC_V2_SCHEMA_VERSION
+        task_spec = OBJECTCENTRIC_V2_TASK_SPECS[task]
+        schema_version = task_spec["schema_version"]
         derive = lambda group: derive_trajectory_objectcentric_v2(
             group,
             camera,
+            task=task,
             future_horizons=future_horizons,
             contact_force_threshold=contact_force_threshold,
         )
@@ -476,12 +518,7 @@ def derive_dataset(
                         "source": "robot_obj_contact_force_norm",
                         "force_norm_threshold": contact_force_threshold,
                     },
-                    "push_interaction_phase_labels": {
-                        "0": "approach",
-                        "1": "measured_contact",
-                        "2": "measured_contact_while_object_moves",
-                        "3": "native_task_success",
-                    },
+                    f"{task_spec['phase_key']}_labels": task_spec["phase_labels"],
                     "future_horizons_steps": list(future_horizons),
                     "eef_transition_local": {
                         "source": "observed tcp_pose[t:t+1] plus raw gripper action",

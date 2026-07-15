@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-15 UTC — PickCube EORT task-specific collection scaffold
+
+- 原因：PushCube 只覆盖接触推动，无法验证 object-centric 表示在“接近—双指抓取—搬运—放置”的接触阶段是否仍有用；PickCube 是保留 Panda 原生 motion planner 的最小第二任务。
+- 精确变更：新增 `PickCubeEORT-v1`，不改变 PickCube 物理、reward、success 或 controller；只以 256×256 sensor 保存 cube/goal actor ID、cube 线/角速度、Panda hand/finger 实测接触力及 `(T+1,1)` native `is_grasped` 标签。goal marker 仅在这个 EORT variant 的 sensor 中可见以支持 goal mask/depth QA。派生器按 task 导出独立 `pick_interaction_phase`（approach/contact/native grasp/native success），并为 PickCube 使用独立 schema version；未来 object delta 仍仅作辅助监督。采集入口新增可覆写的 trajectory name，默认 PushCube 行为保持不变。
+- 风险约束：`is_grasped`、actor ID、接触与 future delta 均为 simulator oracle，绝不进入 action policy；`eef_transition_local` 仍是 observed transition 而非真机 command；不在当前繁忙 GPU 采集或训练。
+
 ## 2026-07-10 11:41:19 UTC — ManiSkill PushCube EORT pilot data construction
 
 - 原因：在进入训练或多任务扩展前，需要在 ManiSkill3 中建立可复现、可审计的 object-centric oracle 数据采集 gate，并避免复制 RLBench 中的固定接触区/四元数相减等不可靠标签。

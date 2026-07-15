@@ -8,7 +8,8 @@ RAW_ROOT="${DATA_ROOT}/raw"
 OUTPUT_DIR="${DATA_ROOT}/derived"
 NUM_TRAJ=${NUM_TRAJ:-10}
 ENV_ID=${MANISKILL_EORT_ENV_ID:-PushCubeEORT-v1}
-TRAJ_PATH="${RAW_ROOT}/${ENV_ID}/motionplanning/push_cube_objectcentric_v2.h5"
+TRAJ_NAME=${MANISKILL_EORT_TRAJ_NAME:-push_cube_objectcentric_v2}
+TRAJ_PATH="${RAW_ROOT}/${ENV_ID}/motionplanning/${TRAJ_NAME}.h5"
 
 if [[ -n "${MANISKILL_EORT_CUDA_VISIBLE_DEVICES:-}" ]]; then
   export CUDA_VISIBLE_DEVICES="${MANISKILL_EORT_CUDA_VISIBLE_DEVICES}"
@@ -27,7 +28,7 @@ cd "${PROJECT_ROOT}"
   --obs-mode state_dict+rgb+depth+segmentation \
   --sim-backend cpu \
   --record-dir "${RAW_ROOT}" \
-  --traj-name push_cube_objectcentric_v2
+  --traj-name "${TRAJ_NAME}"
 "${PYTHON}" scripts/eort/derive_push_cube_eort.py \
   --traj-path "${TRAJ_PATH}" \
   --output-dir "${OUTPUT_DIR}" \
