@@ -1,5 +1,10 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 18:40 UTC - Production renderer selection guard
+
+- Static/negative-path verification only: the large-collection wrapper accepts an unset GPU during `DRY_RUN=1`, reports an explicit selector when supplied, and rejects a real invocation without `MANISKILL_EORT_CUDA_VISIBLE_DEVICES` before creating its collection root.
+- This prevents accidental fallback to the previously OOMing default GPU 0. It does not measure GPU capacity, renderer peak memory, collection throughput or large-run stability; the selected GPU still requires a one-trajectory smoke on the target machine.
+
 ## 2026-07-16 20:00 UTC - 独立 future-object supervision 数据视图
 
 - 大规模 wrapper 新增显式 `MANISKILL_EORT_INCLUDE_FUTURE_TARGETS=1`，只允许与 metric action 同用，并写入独立 `*_metric_dynamics` LeRobot 根；默认数据格式和无 future policy modality 约束不变。

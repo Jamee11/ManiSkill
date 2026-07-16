@@ -93,6 +93,8 @@ HDF5+NPZ 是可审计的 object-centric 真值来源；LeRobot 只是 DiT4DiT �
 
 先在目标机器上只检查计划；这不会创建目录、轨迹、视频或 LeRobot 数据：
 
+`DRY_RUN=1` 可以不指定 GPU（输出中的 `gpu` 会显示为 `unset`）。任何真实采集都必须显式设置非空的 `MANISKILL_EORT_CUDA_VISIBLE_DEVICES`；否则 wrapper 会在创建 shard 前退出，避免静默落到曾 OOM 的默认 GPU 0。
+
 ```bash
 cd /remote-home/jinminghao/WAMs/ManiSkill
 

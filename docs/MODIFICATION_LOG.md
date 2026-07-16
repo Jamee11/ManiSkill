@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-16 18:40 UTC - Require an explicit renderer GPU for production collection
+
+- Reason: The host CPU renderer crashes and default GPU 0 previously OOMed, but the production wrapper still silently inherited the ambient CUDA device when its explicit selector was omitted.
+- Change: Real collection now exits before creating a shard unless `MANISKILL_EORT_CUDA_VISIBLE_DEVICES` is nonempty. `DRY_RUN=1` remains side-effect-free and may report `gpu=unset`; physics, renderer, data schema, split sizes and exporters are unchanged.
+- Verification: Shell syntax passed; dry-runs with unset and explicit GPU selectors passed, while a non-dry invocation without the selector exited with status 2 and created no collection root. No simulation, data collection or training was launched.
+
 ## 2026-07-16 18:30 UTC - Align collection defaults with the approved split plan
 
 - Reason: The documented first production pass is 500/100/200 successful episodes per visual variant for train/val/test, but the wrapper defaulted every split to 1000. Omitting one environment variable could therefore launch 9,000 episodes instead of the planned 2,400.

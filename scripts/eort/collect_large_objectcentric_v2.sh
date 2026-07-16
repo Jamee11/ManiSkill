@@ -72,6 +72,10 @@ if [[ "${DRY_RUN:-0}" == "1" ]]; then
     "${COLLECTION_ROOT}" "${TASK}" "${SPLIT}" "${VARIANTS}" "${NUM_TRAJ}" "${START_SEED}" "${SEED_BLOCK_SIZE}" "${EXPORTS}" "${ACTION_SOURCE}" "${INCLUDE_FUTURE_TARGETS}" "${CONTROLLER_REPLAY_ENVS}" "${CUDA_VISIBLE_DEVICES:-unset}"
   exit 0
 fi
+if [[ -z "${MANISKILL_EORT_CUDA_VISIBLE_DEVICES:-}" ]]; then
+  echo "Set MANISKILL_EORT_CUDA_VISIBLE_DEVICES explicitly before collection" >&2
+  exit 2
+fi
 if [[ ! -x "${PYTHON}" || ! -x "${DIT4DIT_PYTHON}" || ! -f "${DIT4DIT_ROOT}/examples/RLBench_EORT/scripts/convert_maniskill_eort_to_lerobot.py" ]]; then
   echo "Missing ManiSkill/DiT4DiT Python or exporter; set MANISKILL_EORT_PYTHON, DIT4DIT_PYTHON, DIT4DIT_ROOT" >&2
   exit 1
