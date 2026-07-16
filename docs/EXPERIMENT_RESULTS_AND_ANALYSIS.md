@@ -1,5 +1,10 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 18:45 UTC - Collection source-provenance audit
+
+- The read-only training gate now consumes metadata already written beside controller HDF5 rather than creating another manifest. It rejects unexpected task/visual environment IDs, observation/control/simulation backends, seed disagreement, missing source commit, and mixed commits across shards.
+- A read-only inspection of the retained Push fixed/camera-random/occluded controller metadata found one source commit (`5d369b5`), the expected three environment IDs/backends and 3 matching unique seeds. Its older retained sidecar summaries predate the current visibility-QA schema, so the whole legacy root does not pass today's complete audit and must not substitute for a newly collected production root. Python/Torch/SAPIEN versions remain an external environment-smoke requirement.
+
 ## 2026-07-16 18:40 UTC - Production renderer selection guard
 
 - Static/negative-path verification only: the large-collection wrapper accepts an unset GPU during `DRY_RUN=1`, reports an explicit selector when supplied, and rejects a real invocation without `MANISKILL_EORT_CUDA_VISIBLE_DEVICES` before creating its collection root.

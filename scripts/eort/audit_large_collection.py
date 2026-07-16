@@ -47,6 +47,7 @@ def audit_collection(
     action_suffix = "_metric_dynamics" if future_targets else ("_metric" if action_source == "metric_task_delta_pose" else "")
     prefix = f"maniskill_eort_{task}_256"
     owners: dict[int, str] = {}
+    source_commits: set[str] = set()
     report = {"root": str(root), "task": task, "action_source": action_source, "future_targets": future_targets, "shards": []}
 
     for split in splits:
@@ -60,6 +61,25 @@ def audit_collection(
             seed_rows = _json(seed_path).get("saved_trajectory_seeds", [])
             if not seed_rows or not all(row.get("success") is True for row in seed_rows):
                 raise ValueError(f"{name} has missing or unsuccessful seeds")
+            metadata_path = seed_path.with_name(seed_path.name.removesuffix(".seed_manifest.json") + ".json")
+            metadata = _json(metadata_path)
+            env_info, commit_info = metadata.get("env_info", {}), metadata.get("commit_info", {})
+            expected_env = f"{'PushCube' if task == 'push_cube' else 'PickCube'}EORT{'CameraRand' if variant == 'camera_rand' else 'Occluded' if variant == 'occluded' else ''}-v1"
+            env_kwargs = env_info.get("env_kwargs", {})
+            if (
+                env_info.get("env_id") != expected_env
+                or env_kwargs.get("obs_mode") != "state_dict+rgb+depth+segmentation"
+                or env_kwargs.get("control_mode") != "pd_ee_delta_pose"
+                or env_kwargs.get("sim_backend") != "physx_cpu"
+            ):
+                raise ValueError(f"{name} controller environment provenance is invalid")
+            commit = commit_info.get("commit_id")
+            if not commit:
+                raise ValueError(f"{name} lacks a ManiSkill source commit")
+            source_commits.add(commit)
+            metadata_seeds = sorted(int(row["episode_seed"]) for row in metadata.get("episodes", []) if row.get("success") is True)
+            if metadata_seeds != sorted(int(row["seed"]) for row in seed_rows):
+                raise ValueError(f"{name} controller metadata and seed manifest differ")
             for row in seed_rows:
                 seed = int(row["seed"])
                 if seed in owners:
@@ -112,6 +132,9 @@ def audit_collection(
     report["episodes"] = sum(row["episodes"] for row in report["shards"])
     report["steps"] = sum(row["steps"] for row in report["shards"])
     report["unique_simulator_seeds"] = len(owners)
+    if len(source_commits) != 1:
+        raise ValueError(f"Collection mixes ManiSkill commits: {sorted(source_commits)}")
+    report["maniskill_commit"] = source_commits.pop()
     return report
 
 

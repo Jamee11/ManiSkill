@@ -11,10 +11,17 @@ def _write(path: Path, value) -> None:
     path.write_text(json.dumps(value) + "\n")
 
 
-def _collection(root: Path, split: str, seed: int) -> None:
+def _collection(root: Path, split: str, seed: int, commit: str = "abc123") -> None:
     shard = root / "push_cube" / split / "fixed"
     _write(shard / "raw/Env/motionplanning/data.pd_ee_delta_pose.physx_cpu.seed_manifest.json", {
         "saved_trajectory_seeds": [{"trajectory": "traj_0", "seed": seed, "success": True}]
+    })
+    _write(shard / "raw/Env/motionplanning/data.pd_ee_delta_pose.physx_cpu.json", {
+        "env_info": {"env_id": "PushCubeEORT-v1", "env_kwargs": {
+            "obs_mode": "state_dict+rgb+depth+segmentation", "control_mode": "pd_ee_delta_pose", "sim_backend": "physx_cpu",
+        }},
+        "commit_info": {"commit_id": commit, "branch": "test"},
+        "episodes": [{"episode_seed": seed, "success": True}],
     })
     derived = shard / "derived_controller_goal_segdepth"
     _write(derived / "manifest.jsonl", {
@@ -39,6 +46,11 @@ class CollectionAuditTest(unittest.TestCase):
             report = audit_collection(root, "push_cube", ["train", "val"], ["fixed"], "metric_task_delta_pose", ["oracle"])
             self.assertEqual(report["episodes"], report["unique_simulator_seeds"])
             self.assertEqual(report["episodes"], 2)
+            self.assertEqual(report["maniskill_commit"], "abc123")
+
+            _collection(root, "val", 20, commit="different")
+            with self.assertRaisesRegex(ValueError, "mixes ManiSkill commits"):
+                audit_collection(root, "push_cube", ["train", "val"], ["fixed"], "metric_task_delta_pose", ["oracle"])
 
             _collection(root, "val", 10)
             with self.assertRaisesRegex(ValueError, "appears in both"):

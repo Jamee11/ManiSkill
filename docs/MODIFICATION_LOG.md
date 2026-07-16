@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-16 18:45 UTC - Audit simulator source and environment provenance
+
+- Reason: Controller records already contained commit/environment metadata, but the training preflight did not reject a collection assembled from different ManiSkill revisions or an unexpected environment/control backend.
+- Change: The existing read-only audit now verifies each controller JSON's environment ID, RGB-D-segmentation observation mode, `pd_ee_delta_pose`, `physx_cpu`, successful episode seeds, and nonempty source commit; all requested shards must share one commit. No new manifest or collection output was added.
+- Verification: The focused unittest accepts a consistent fixture and rejects mixed commits; a read-only inspection of the retained three-variant Push controller metadata reports one commit (`5d369b5`), the three expected environment IDs/backends and matching seeds. The older retained sidecar summaries predate the current visibility-QA schema, so they do not pass the entire current audit and are not presented as production data. No data or training was launched.
+
 ## 2026-07-16 18:40 UTC - Require an explicit renderer GPU for production collection
 
 - Reason: The host CPU renderer crashes and default GPU 0 previously OOMed, but the production wrapper still silently inherited the ambient CUDA device when its explicit selector was omitted.
