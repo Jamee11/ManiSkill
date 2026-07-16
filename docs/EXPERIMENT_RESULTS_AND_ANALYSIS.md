@@ -225,3 +225,8 @@
 - 结果：最终 `success=false`；相对 source TCP 的 position RMSE 为 `0.08648 m`、最大 `0.11084 m`，quaternion `1-|dot|` 最大 `3.86e-5`，command 最大绝对值 `0.1144`。失败主要是位置跟踪/控制语义，不是姿态数值爆炸。
 - 对照：同一 joint demonstration 经 ManiSkill 官方 conversion 产生的 71-step `pd_ee_delta_pose` 轨迹最终 success=true。新 deriver 对其输出 `panda_pd_ee_delta_pose_command(71,7)`，逐元素等于 HDF5 action，同时继续输出非 command 的 `eef_transition_local(71,7)`。
 - 决策：正式 Panda policy 只使用官方 replay controller command；observed transition 留作 dynamics/auxiliary target。该结果不解决 Piper/真机 Franka 的坐标、幅值、频率、夹爪和 safety adapter。
+# 2026-07-16 18:15 UTC - 大规模采集器可选择 metric task action
+
+- `collect_large_objectcentric_v2.sh` 新增显式 `MANISKILL_EORT_ACTION_SOURCE=metric_task_delta_pose`；默认仍为已验证的 Panda normalized command。metric LeRobot 视图写入独立的 `*_metric` 根目录，不覆盖 raw、sidecar或 controller 视图。
+- 对既有 Push fixed/camera-random/occluded 正式 smoke 重新派生 sidecar并导出 metric action 后，DiT4DiT 三组件 loader 长度为 `[71,65,66]`，sample shape 为 state `(1,64)`、action `(8,7)`、image `(3,224,224)`。
+- 这证明数据构造与模型入口连通，不是训练结果，也不证明 Franka/Piper 可执行；真机频率、task-from-base 标定、限幅和夹爪 adapter 仍是阻塞项。

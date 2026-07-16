@@ -20,6 +20,13 @@ EXPORTS=${MANISKILL_EORT_EXPORTS:-oracle,segdepth_proxy,track_corrupt}
 TRACK_DELAY=${MANISKILL_EORT_TRACK_DELAY:-2}
 TRACK_ID_SWITCH_PROB=${MANISKILL_EORT_TRACK_ID_SWITCH_PROB:-0.3}
 TRACK_CORRUPTION_SEED=${MANISKILL_EORT_TRACK_CORRUPTION_SEED:-17}
+ACTION_SOURCE=${MANISKILL_EORT_ACTION_SOURCE:-panda_pd_ee_delta_pose}
+
+case "${ACTION_SOURCE}" in
+  panda_pd_ee_delta_pose) action_output_suffix= ;;
+  metric_task_delta_pose) action_output_suffix=_metric ;;
+  *) echo "MANISKILL_EORT_ACTION_SOURCE must be panda_pd_ee_delta_pose or metric_task_delta_pose" >&2; exit 2 ;;
+esac
 
 case "${TASK}" in
   push_cube) dataset_prefix=maniskill_eort_push_cube_256 ;;
@@ -51,8 +58,8 @@ variant_env() {
 }
 
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
-  printf '{"collection_root":"%s","task":"%s","split":"%s","variants":"%s","num_traj_per_variant":%s,"start_seed":%s,"seed_block_size":%s,"exports":"%s","action_source":"panda_pd_ee_delta_pose","controller_replay_envs":%s,"gpu":"%s"}\n' \
-    "${COLLECTION_ROOT}" "${TASK}" "${SPLIT}" "${VARIANTS}" "${NUM_TRAJ}" "${START_SEED}" "${SEED_BLOCK_SIZE}" "${EXPORTS}" "${CONTROLLER_REPLAY_ENVS}" "${CUDA_VISIBLE_DEVICES:-unset}"
+  printf '{"collection_root":"%s","task":"%s","split":"%s","variants":"%s","num_traj_per_variant":%s,"start_seed":%s,"seed_block_size":%s,"exports":"%s","action_source":"%s","controller_replay_envs":%s,"gpu":"%s"}\n' \
+    "${COLLECTION_ROOT}" "${TASK}" "${SPLIT}" "${VARIANTS}" "${NUM_TRAJ}" "${START_SEED}" "${SEED_BLOCK_SIZE}" "${EXPORTS}" "${ACTION_SOURCE}" "${CONTROLLER_REPLAY_ENVS}" "${CUDA_VISIBLE_DEVICES:-unset}"
   exit 0
 fi
 if [[ ! -x "${PYTHON}" || ! -x "${DIT4DIT_PYTHON}" || ! -f "${DIT4DIT_ROOT}/examples/RLBench_EORT/scripts/convert_maniskill_eort_to_lerobot.py" ]]; then
@@ -105,17 +112,17 @@ for index in "${!variants[@]}"; do
   for export_name in "${exports[@]}"; do
     case "${export_name}" in
       oracle)
-        output_root="${COLLECTION_ROOT}/lerobot/${SPLIT}/oracle"
+        output_root="${COLLECTION_ROOT}/lerobot/${SPLIT}/oracle${action_output_suffix}"
         dataset_name="${dataset_prefix}_${variant}_lerobot"
         export_args=(--condition-source oracle)
         ;;
       segdepth_proxy)
-        output_root="${COLLECTION_ROOT}/lerobot/${SPLIT}/segdepth_proxy"
+        output_root="${COLLECTION_ROOT}/lerobot/${SPLIT}/segdepth_proxy${action_output_suffix}"
         dataset_name="${dataset_prefix}_${variant}_segdepth_track_proxy_lerobot"
         export_args=(--condition-source segdepth_track_proxy)
         ;;
       track_corrupt)
-        output_root="${COLLECTION_ROOT}/lerobot/${SPLIT}/track_corrupt"
+        output_root="${COLLECTION_ROOT}/lerobot/${SPLIT}/track_corrupt${action_output_suffix}"
         dataset_name="${dataset_prefix}_${variant}_segdepth_track_corrupt_lerobot"
         export_args=(--condition-source segdepth_track_proxy --track-delay-steps "${TRACK_DELAY}" --track-id-switch-prob "${TRACK_ID_SWITCH_PROB}" --track-corruption-seed "${TRACK_CORRUPTION_SEED}")
         ;;
@@ -124,6 +131,6 @@ for index in "${!variants[@]}"; do
     "${DIT4DIT_PYTHON}" "${DIT4DIT_ROOT}/examples/RLBench_EORT/scripts/convert_maniskill_eort_to_lerobot.py" \
       --trajectory-path "${controller_path}" --derived-dir "${derived_dir}" \
       --output-root "${output_root}" --dataset-name "${dataset_name}" --fps "${FPS}" \
-      --action-source panda_pd_ee_delta_pose "${export_args[@]}"
+      --action-source "${ACTION_SOURCE}" "${export_args[@]}"
   done
 done

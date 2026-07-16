@@ -233,3 +233,8 @@
 - 精确变更：v2 deriver 现在对 goal actor 复用既有 mask/depth/intrinsic/extrinsic back-projection，新增 `goal_segdepth_centroid_world(T,3)`、`goal_segdepth_valid(T,1)` 与相对于现有 `goal_pos` 的 `goal_segdepth_centroid_error(T,1)`。未修改环境、raw HDF5、policy export 或任何 action input；字段仍显式为 oracle actor-mask supervision。
 - 验证：2×2 synthetic test 覆盖可见 goal 的 centroid/valid；在保留的 256px occlusion raw HDF5 上重派生到独立目录，10 条/686 帧均得到有限 `(T,3)` goal centroid 和 valid=true，无效 centroid 非零数为零。旧 derived 目录保持不变。
 - 边界：depth centroid 是可见表面，不是物体/目标几何中心，更不是 learned detection；它只建立日后 detector/mask 输出可替换的输入契约。
+# 2026-07-16 18:15 UTC - 大规模采集入口支持独立 metric action 视图
+
+- 原因：Panda normalized command 可逆解码已验证，但正式大规模 wrapper 仍只能生成 robot-specific LeRobot action，无法直接排跨机器人 action gate。
+- 改动：为大规模采集脚本增加显式 `MANISKILL_EORT_ACTION_SOURCE`，支持默认 Panda command 或 metric task delta pose；metric 数据自动写入独立的 `*_metric` LeRobot 根目录，raw、sidecar、视频与已有 controller 数据均不替换。
+- 验证：shell 语法和 dry-run 通过；真实三视觉分支 metric 数据已由 DiT4DiT loader 读为 `[71,65,66]`，sample shape 为 `(1,64)/(8,7)/(3,224,224)`。未启动训练。

@@ -89,7 +89,7 @@ raw pd_joint_pos HDF5 + seed_manifest
   -> LeRobot oracle / segdepth_proxy / track_corrupt 三个训练视图
 ```
 
-HDF5+NPZ 是可审计的 object-centric 真值来源；LeRobot 只是 DiT4DiT 当前 loader 的训练视图。tracker 读取 controller-replay HDF5 的 RGB-D/标定，DiT4DiT action policy 主目标读取同一轨迹的 7D Panda controller command；observed local EEF transition 只保留为 dynamics/辅助目标。任何一边都不以 LeRobot 覆盖 raw 或 sidecar。
+HDF5+NPZ 是可审计的 object-centric 真值来源；LeRobot 只是 DiT4DiT 当前 loader 的训练视图。tracker 读取 controller-replay HDF5 的 RGB-D/标定。默认 action 仍是同一轨迹的 7D Panda controller command；设置 `MANISKILL_EORT_ACTION_SOURCE=metric_task_delta_pose` 后，导出可逆解码的 metric task command，并使用独立的 `*_metric` 目录，避免覆盖默认数据。observed local EEF transition 只保留为 dynamics/辅助目标。任何一边都不以 LeRobot 覆盖 raw 或 sidecar。
 
 先在目标机器上只检查计划；这不会创建目录、轨迹、视频或 LeRobot 数据：
 
@@ -105,6 +105,14 @@ MANISKILL_EORT_CUDA_VISIBLE_DEVICES=4 \
 DRY_RUN=1 \
 bash scripts/eort/collect_large_objectcentric_v2.sh
 ```
+
+若第一批数据明确用于 Franka/Piper 共享 action gate，建议在采集命令中加入：
+
+```bash
+MANISKILL_EORT_ACTION_SOURCE=metric_task_delta_pose
+```
+
+raw HDF5、sidecar 和预览不变；LeRobot 输出自动写到 `oracle_metric`、`segdepth_proxy_metric`、`track_corrupt_metric`。每步 action 是 `[task_dx_m,task_dy_m,task_dz_m,task_drx_rad,task_dry_rad,task_drz_rad,gripper_open]`。它是 task/world 轴增量，不是当前设计文档中更强的 EEF-local 双臂最终契约；真机 adapter 仍必须做 task-from-base 标定和限幅。
 
 确认后删除 `DRY_RUN=1` 才会采集。每次调用对每个 variant 采 `NUM_TRAJ` 条**独立**成功物理轨迹；例如三个 variant 加 `NUM_TRAJ=500` 是 1,500 条独立物理轨迹，不是同一条轨迹三次重渲染。
 
@@ -133,6 +141,8 @@ bash scripts/eort/collect_large_objectcentric_v2.sh
 ```
 
 它们分别包含既有名称的 `maniskill_eort_{push,pick}_cube_256_{fixed,camera_rand,occluded}_..._lerobot` 数据集。正式训练使用原 mixture 名追加 `_controller`，并设置 `MANISKILL_EORT_ACTION_SOURCE=panda_pd_ee_delta_pose`；旧 mixture 仅兼容 observed-transition pilot。val/test 根使用相同 controller mixture 做数据/离线评估，不可与 train root 混用。
+
+metric action 的目录是上述路径追加 `_metric`，mixture 名追加 `_metric`，训练设置 `MANISKILL_EORT_ACTION_SOURCE=metric_task_delta_pose`。两套 action 数据不得写入同一 LeRobot 根目录或在一个 run 中混用。
 
 tracker 不读 LeRobot 视频，因为它需要 raw metric depth 与 camera calibration。自动 launcher 选择 `*.pd_ee_delta_pose.physx_cpu.h5` 与 `derived_controller_goal_segdepth`；只按同一 physical trajectory 分组切分，不得把 train raw 与 val/test raw 拼在一起训练。
 
