@@ -241,3 +241,8 @@
 - 新增只读 `audit_large_collection.py`，统一检查 train/val/test × fixed/camera-random/occluded 的成功 seed、全局 seed 泄漏、sidecar 数量/trajectory ID、action provenance、visibility QA 与 LeRobot conversion contract。
 - unittest 通过；真实 Push metric 三视觉 smoke 通过，汇总 3 unique simulator seeds、3 episodes、202 steps，逐分支 relational-valid 为 71/71、65/65、66/66。
 - 该结果只验证 audit 与当前小样本链路；正式 500/100/200 collection 仍必须在外机完成后重新运行，不以本次 smoke 代替规模验证。
+
+# 2026-07-16 18:30 UTC - 大规模采集默认规模复核
+
+- 只运行 production wrapper 的 dry-run，没有启动仿真或采集。train/val/test 在未设置 `NUM_TRAJ` 时分别解析为每视觉分支 500/100/200 条，显式 `NUM_TRAJ=7` 仍覆盖默认。
+- 该修改只避免误采规模；成功率、存储、visibility 分布和长时稳定性仍须由外机正式 collection 与 audit 证明。

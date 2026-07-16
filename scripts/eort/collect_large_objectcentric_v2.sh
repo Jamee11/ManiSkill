@@ -11,7 +11,6 @@ COLLECTION_ROOT=${MANISKILL_EORT_COLLECTION_ROOT:-/remote-home/jinminghao/datase
 TASK=${MANISKILL_EORT_TASK:-push_cube}
 SPLIT=${MANISKILL_EORT_SPLIT:-train}
 VARIANTS=${MANISKILL_EORT_VARIANTS:-fixed,camera_rand,occluded}
-NUM_TRAJ=${NUM_TRAJ:-1000}
 SEED_BLOCK_SIZE=${MANISKILL_EORT_SEED_BLOCK_SIZE:-100000}
 PREVIEW_EPISODES=${MANISKILL_EORT_PREVIEW_EPISODES:-3}
 CONTROLLER_REPLAY_ENVS=${MANISKILL_EORT_CONTROLLER_REPLAY_ENVS:-1}
@@ -44,11 +43,12 @@ case "${TASK}" in
   *) echo "MANISKILL_EORT_TASK must be push_cube or pick_cube" >&2; exit 2 ;;
 esac
 case "${SPLIT}" in
-  train) split_seed_default=0 ;;
-  val) split_seed_default=1000000 ;;
-  test) split_seed_default=2000000 ;;
+  train) split_seed_default=0; split_num_traj_default=500 ;;
+  val) split_seed_default=1000000; split_num_traj_default=100 ;;
+  test) split_seed_default=2000000; split_num_traj_default=200 ;;
   *) echo "MANISKILL_EORT_SPLIT must be train, val, or test" >&2; exit 2 ;;
 esac
+NUM_TRAJ=${NUM_TRAJ:-${split_num_traj_default}}
 START_SEED=${MANISKILL_EORT_START_SEED:-${split_seed_default}}
 if (( NUM_TRAJ <= 0 || NUM_TRAJ >= SEED_BLOCK_SIZE )); then
   echo "NUM_TRAJ must be positive and smaller than MANISKILL_EORT_SEED_BLOCK_SIZE" >&2

@@ -137,7 +137,7 @@ bash scripts/eort/collect_large_objectcentric_v2.sh
 
 默认 seed 区间为 train=`0`、val=`1000000`、test=`2000000`；同一命令内的 variant 再以 100,000 的 block 分开。raw 旁的 `*.seed_manifest.json` 记录每条保存 trajectory 对应的实际成功 task seed。不要手工复用 `MANISKILL_EORT_START_SEED` 或减小 `MANISKILL_EORT_SEED_BLOCK_SIZE`；否则 split 独立性失效。每个输出目录均拒绝覆盖，重复任务应使用新的 collection root。
 
-建议第一批将 train/val/test 分别调用三次。先用 PushCube `500/100/200` 每 variant 跑完整链路，再根据 oracle gate 决定是否扩大到每 variant `1000+`；PickCube 只能在其 visual GPU smoke 后按同样协议采集。当前脚本默认 CPU PhysX + 指定 GPU renderer，单进程采集；不要为增速启用多 renderer 进程。
+建议第一批将 train/val/test 分别调用三次。脚本在未显式设置 `NUM_TRAJ` 时按 split 默认使用 PushCube `500/100/200` 每 variant；显式 `NUM_TRAJ` 仍会覆盖。先按该规模跑完整链路，再根据 oracle gate 决定是否扩大到每 variant `1000+`；PickCube 只能在其 visual GPU smoke 后按同样协议采集。当前脚本默认 CPU PhysX + 指定 GPU renderer，单进程采集；不要为增速启用多 renderer 进程。
 
 ### 训练根目录对应关系
 

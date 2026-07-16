@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-16 18:30 UTC - Align collection defaults with the approved split plan
+
+- Reason: The documented first production pass is 500/100/200 successful episodes per visual variant for train/val/test, but the wrapper defaulted every split to 1000. Omitting one environment variable could therefore launch 9,000 episodes instead of the planned 2,400.
+- Change: The existing wrapper now chooses `NUM_TRAJ=500/100/200` from the selected split when the variable is unset. An explicit `NUM_TRAJ` still overrides the default; seed blocks, output layout, data schema, physics, renderer, exporter and audit are unchanged.
+- Verification: Shell syntax passed; dry-runs for train/val/test reported 500/100/200, and an explicit `NUM_TRAJ=7` override remained effective. No data was collected.
+
 ## 2026-07-16 20:00 UTC - Add an isolated future-object supervision export
 
 - Reason: h=1/4/8 future object labels existed only in sidecars. DiT4DiT needs an explicit auxiliary-target view, while default policy datasets must continue to exclude future truth.
