@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-16 19:18 UTC - Persist object extent before domain randomization
+
+- Reason: The cross-embodiment schema declared object extent, but current raw/sidecar data omitted it. Adding size randomization first would therefore create an unobservable data-construction change and make replay/QA ambiguous.
+- Change: Push/Pick EORT observations now record full cube side lengths as `obj_extent(T+1,3)`. The v2 sidecar requires positive episode-static values and writes `object_extent(1,3)` plus provenance; the production audit requires the explicit raw source. Historical Panda EORT raw remains derivable through its exact fixed 4 cm task constant, but that fallback cannot pass the production audit. The current DiT4DiT policy condition is unchanged.
+- Verification: Focused v2 derivation and collection-audit tests pass. A retained real 71-step Push controller HDF5 without the new raw field re-derived `object_extent(1,3)=[0.04,0.04,0.04]` with explicit legacy provenance. A fresh renderer/runtime smoke was not claimed; no collection or training was started.
+
 ## 2026-07-16 19:10 UTC - Add an offline real-robot calibration gate
 
 - Reason: The verified Panda metric action still lacked an auditable boundary before a Franka/Piper driver. Local source inspection found only a StarVLA interface placeholder and a UniVLA deployment node tied to a specific ROS/IK/eye-hand setup; no reusable Piper SDK was present.

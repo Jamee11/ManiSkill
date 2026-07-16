@@ -89,6 +89,7 @@ class PushCubeEORTTest(unittest.TestCase):
                 object_pose[1:, 3:] = [quarter_turn, 0.0, 0.0, quarter_turn]
                 extra.create_dataset("tcp_pose", data=tcp_pose)
                 extra.create_dataset("obj_pose", data=object_pose)
+                extra.create_dataset("obj_extent", data=np.tile([0.04, 0.04, 0.04], (4, 1)))
                 extra.create_dataset("goal_pos", data=np.tile([1.0, 0.0, 0.0], (4, 1)))
                 extra.create_dataset(
                     "obj_linear_velocity",
@@ -162,7 +163,9 @@ class PushCubeEORTTest(unittest.TestCase):
             self.assertIn("x_max_exclusive", manifest["segmentation_visibility"]["bbox_xyxy"])
             self.assertFalse(manifest["occluder_active"]["policy_input"])
             self.assertFalse(manifest["eef_transition_local"]["controller_command"])
+            self.assertFalse(manifest["object_extent"]["policy_input"])
             with np.load(root / "derived" / "traj_0.npz") as labels:
+                np.testing.assert_allclose(labels["object_extent"], [[0.04, 0.04, 0.04]])
                 self.assertEqual(labels["physical_contact"].tolist(), [[False], [True], [True]])
                 self.assertEqual(labels["push_interaction_phase"].tolist(), [[0], [2], [3]])
                 self.assertEqual(labels["object_future_delta_pos"].shape, (3, 3, 3))
@@ -193,6 +196,8 @@ class PushCubeEORTTest(unittest.TestCase):
                 np.testing.assert_allclose(labels["eef_transition_local"][:, :6], 0.0)
                 np.testing.assert_allclose(labels["eef_transition_local"][:, 6], [0.0, 0.5, 1.0])
 
+            with h5py.File(trajectory, "r+") as file:
+                del file["traj_0/obs/extra/obj_extent"]
             trajectory.with_suffix(".json").write_text(
                 json.dumps(
                     {"env_info": {"env_id": "PickCubeEORT-v1", "env_kwargs": {"control_mode": "pd_joint_pos"}}}
@@ -206,8 +211,10 @@ class PushCubeEORTTest(unittest.TestCase):
             self.assertEqual(pick_summary["phase_qa"]["phase_key"], "pick_interaction_phase")
             pick_manifest = json.loads((root / "derived_pick" / "manifest.jsonl").read_text())
             self.assertEqual(pick_manifest["pick_interaction_phase_labels"]["2"], "native_grasp_detected")
+            self.assertEqual(pick_manifest["object_extent"]["source"], "legacy_fixed_panda_cube_0.04m")
             with np.load(root / "derived_pick" / "traj_0.npz") as labels:
                 self.assertEqual(labels["pick_interaction_phase"].tolist(), [[0], [2], [3]])
+                np.testing.assert_allclose(labels["object_extent"], [[0.04, 0.04, 0.04]])
 
             controller_actions = np.zeros((3, 7), dtype=np.float32)
             controller_actions[:, :3] = [[0.2, -0.3, 0.4], [0, 0, 0], [-0.5, 0.1, 0.2]]

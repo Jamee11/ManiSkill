@@ -357,6 +357,13 @@ def derive_trajectory_objectcentric_v2(
         )
     tcp_pose = _finite_array(group, "obs/extra/tcp_pose", steps, 7)
     object_pose = _finite_array(group, "obs/extra/obj_pose", steps, 7)
+    if "obj_extent" in group["obs/extra"]:
+        object_extent = _finite_array(group, "obs/extra/obj_extent", steps, 3)
+    else:
+        # Legacy Panda EORT recordings predate this field; both tasks used a fixed 4 cm cube.
+        object_extent = np.full((steps + 1, 3), 0.04, dtype=np.float32)
+    if np.any(object_extent <= 0) or not np.allclose(object_extent, object_extent[:1]):
+        raise ValueError(f"{group.name} object extent must be positive and fixed within an episode")
     object_linear_velocity = _finite_array(
         group, "obs/extra/obj_linear_velocity", steps, 3
     )
@@ -441,6 +448,7 @@ def derive_trajectory_objectcentric_v2(
     interaction_phase[arrays["success"]] = 3
     arrays.update(
         {
+            "object_extent": object_extent[:1],
             "object_linear_velocity": object_linear_velocity[:-1],
             "object_angular_velocity": object_angular_velocity[:-1],
             "eef_transition_local": _local_eef_transition(
@@ -516,6 +524,12 @@ def derive_dataset(
 
     records: list[dict[str, Any]] = []
     with h5py.File(trajectory_path, "r") as file:
+        extent_sources = {
+            key: "obs/extra/obj_extent"
+            if "obj_extent" in file[key]["obs/extra"]
+            else "legacy_fixed_panda_cube_0.04m"
+            for key in _trajectory_keys(file)
+        }
         outputs = [(key, derive(file[key])) for key in _trajectory_keys(file)]
 
     output_dir.mkdir(parents=True)
@@ -568,6 +582,12 @@ def derive_dataset(
                     "controller_command": True,
                     "robot_specific_scaling": False,
                 }
+            records[-1]["object_extent"] = {
+                "source": extent_sources[trajectory_id],
+                "layout": "full xyz side lengths in meters",
+                "static_within_episode": True,
+                "policy_input": False,
+            }
             if "object_visible" in arrays:
                 records[-1]["segmentation_visibility"] = {
                     "object_id_source": "obs/extra/obj_segmentation_id",

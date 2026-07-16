@@ -1,7 +1,7 @@
 # EORT 跨机器人数据与动作契约
 
 状态：Panda→metric task action 数据/导出/训练入口已打通；已有离线标定/限幅预检，但 Franka/Piper 硬件执行适配器尚未实现。
-最后更新：2026-07-16 19:10:00 UTC。
+最后更新：2026-07-16 19:18:00 UTC。
 
 ## 1. 已验证的事实与边界
 
@@ -68,6 +68,8 @@ arm_present                   : (A,) bool
 ```
 
 `interaction_phase`、role、valid、visible、arm-present 是离散 token/mask，必须作为 embedding 或 mask 处理；不能 q99 连续归一化。连续 pose/velocity/force/future delta 只用训练集统计量归一化。当前 PushCube v2 是该契约的一个 `A=1,N=1,G=1,H=3` 子集；已持久化 object/goal actor ID 并导出 object/goal visibility fraction。它仍未覆盖多 object、遮挡或真实感知 ID 管理。
+
+当前 raw EORT 也显式保存 `obj_extent(T+1,3)`，sidecar 验证 episode 内为正且固定后导出 `object_extent(1,3)`。该字段先作为几何/随机化 QA，不进入当前 DiT4DiT 17D condition，避免在没有 matched baseline 前改变 policy 输入。正式 collection audit 拒绝仅由旧任务常量回填的 extent；旧 Panda raw 的 `4 cm` 精确回填只用于兼容历史派生。
 
 当前 v2 也导出 `eef_transition_local(T,7)`：当前 EEF frame 的 observed `Δxyz + Δrotvec` 加 `[0,1]` gripper open fraction。它保留了过渡语义，但 manifest 明确它不是 `canonical_action_cmd`；不可跳过 controller replay 而把它用于真机命令。
 

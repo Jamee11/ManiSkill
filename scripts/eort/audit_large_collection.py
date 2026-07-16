@@ -109,9 +109,12 @@ def audit_collection(
             if not all(
                 row.get("source_control_mode") == "pd_ee_delta_pose"
                 and row.get(action_key, {}).get("controller_command") is True
+                and row.get("fields", {}).get("object_extent") == [1, 3]
+                and row.get("object_extent", {}).get("policy_input") is False
+                and row.get("object_extent", {}).get("source") == "obs/extra/obj_extent"
                 for row in records
             ):
-                raise ValueError(f"{name} lacks verified {action_source} provenance")
+                raise ValueError(f"{name} lacks verified {action_source} or object-extent provenance")
 
             summary = _json(derived / "summary.json")
             qa = summary.get("visibility_qa")

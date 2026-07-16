@@ -47,6 +47,7 @@ class PushCubeEORTEnv(PushCubeEnv):
         obs.update(
             obj_segmentation_id=self.obj.per_scene_id[:, None],
             goal_segmentation_id=self.goal_region.per_scene_id[:, None],
+            obj_extent=torch.full_like(self.obj.pose.p, 2 * self.cube_half_size),
             obj_linear_velocity=self.obj.linear_velocity,
             obj_angular_velocity=self.obj.angular_velocity,
             robot_obj_contact_force=contact_forces.sum(dim=1),

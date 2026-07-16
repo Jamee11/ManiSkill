@@ -31,6 +31,8 @@ def _collection(root: Path, split: str, seed: int, commit: str = "abc123", torch
     _write(derived / "manifest.jsonl", {
         "source_trajectory": "traj_0", "source_control_mode": "pd_ee_delta_pose",
         "metric_task_delta_pose_command": {"controller_command": True},
+        "fields": {"object_extent": [1, 3]},
+        "object_extent": {"source": "obs/extra/obj_extent", "policy_input": False},
     })
     (derived / "traj_0.npz").write_bytes(b"fixture")
     _write(derived / "summary.json", {

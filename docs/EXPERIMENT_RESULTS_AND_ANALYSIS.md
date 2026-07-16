@@ -1,5 +1,11 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 19:18 UTC - Domain-randomization prerequisite audit
+
+- Current Push/Pick already randomize object/goal poses; EORT additionally covers camera pose and visual occlusion. It does not yet vary cube geometry, mass/friction, appearance, lighting, sensor noise or robot calibration.
+- ManiSkill's existing SO100 digital-twin task demonstrates seeded scene-load randomization for geometry, friction, color and lighting. Geometry changes are not ordinary saved environment state, so reusing that pattern safely requires proving that controller replay reconstructs the identical asset from the recorded episode seed.
+- Implemented only the missing prerequisite: explicit raw/sidecar object extent with production provenance enforcement. Synthetic derivation/audit checks pass; the retained real 71-step Push controller HDF5, which predates the raw field, re-derived the exact fixed `[0.04,0.04,0.04] m` extent and was marked `legacy_fixed_panda_cube_0.04m`. Size/friction/lighting variants remain deferred until one source→controller replay smoke proves asset identity; no generalization claim follows from this change.
+
 ## 2026-07-16 19:10 UTC - Franka/Piper deployment-interface audit
 
 - Local evidence: StarVLA documents the desired Franka 7D delta action but leaves `env.step(action)` as a user implementation. UniVLA contains a working-style ROS path, but it is coupled to `/mk1000` joint state, a project-specific FK/IK stack, front-camera hand-eye calibration and gripper topic. No Piper SDK or Piper control node was found in the selected project workspaces.

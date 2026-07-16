@@ -52,6 +52,7 @@ class PickCubeEORTEnv(PickCubeEnv):
             is_grasped=info["is_grasped"][:, None],
             obj_segmentation_id=self.cube.per_scene_id[:, None],
             goal_segmentation_id=self.goal_site.per_scene_id[:, None],
+            obj_extent=torch.full_like(self.cube.pose.p, 2 * self.cube_half_size),
             obj_linear_velocity=self.cube.linear_velocity,
             obj_angular_velocity=self.cube.angular_velocity,
             robot_obj_contact_force=contact_forces.sum(dim=1),
