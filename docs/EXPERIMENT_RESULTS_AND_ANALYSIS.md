@@ -1,5 +1,12 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 16:25:33 UTC - Three-variant large-collection harness smoke
+
+- Setup: Ran `scripts/eort/collect_large_objectcentric_v2.sh` on GPU 7 with CPU PhysX, one successful PushCube trajectory per fixed/camera-random/occluded variant, start seeds `0/100000/200000`, official replay to `pd_ee_delta_pose`, all three export views, and 256px QA previews. Output: `/remote-home/jinminghao/datasets/maniskill_eort_large_v2_smoke_20260716` (229 MB).
+- Result: All three source and controller-replayed trajectories succeeded; controller lengths were `71/65/66`. HDF5 actions exactly matched the sidecar Panda controller command and all nine exported Parquet action arrays. All continuous object/dynamics/future arrays were finite. Object visibility was `71/71`, `65/65`, and `66/66`; mask-pixel ranges were `90–119`, `99–115`, and `72–100`. The occluder was active for all 66 occluded frames but did not fully hide the object in this seed. All previews were 256x256 with one frame per action.
+- Loader gate: Oracle, segdepth-proxy, and delayed/ID-switch controller mixtures each initialized component lengths `[71,65,66]` and emitted state `(1,64)`, action `(8,7)`, image `(3,224,224)` with status 0.
+- Interpretation: The exact production wrapper is now verified end to end and did not OOM on this one-per-variant smoke. This is not a large dataset, does not estimate throughput/peak GPU memory, and the single occluded seed is not evidence of occlusion robustness. Full train/val/test collection remains an external scheduled job.
+
 ## 2026-07-16 15:58:07 UTC - DiT4DiT Panda evaluator replay smoke
 
 - Setup: GPU 7 renderer, CPU PhysX, `PushCubeEORT-v1`, first recorded state, and exact replay-generated `pd_ee_delta_pose` actions. The DiT4DiT evaluator constructed the current oracle object condition and applied its learned-action safety path; no policy/tracker training was run.

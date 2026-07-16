@@ -77,6 +77,8 @@ Smoke 通过后，将 `NUM_TRAJ=10`。脚本拒绝覆盖已有 raw HDF5 或 `der
 
 使用 `scripts/eort/collect_large_objectcentric_v2.sh`。它不改变已经验证的格式，而是为每个独立 shard 串联：
 
+该正式 wrapper 已在 GPU 7 以 fixed/camera-random/occluded 各 1 条完成端到端 smoke，输出位于 `/remote-home/jinminghao/datasets/maniskill_eort_large_v2_smoke_20260716`。这只证明链路可运行；正式采集仍按新的 collection root 执行，不能复用或覆盖该 smoke 目录。
+
 ```text
 raw pd_joint_pos HDF5 + seed_manifest
   -> ManiSkill 官方 replay -> successful pd_ee_delta_pose HDF5
