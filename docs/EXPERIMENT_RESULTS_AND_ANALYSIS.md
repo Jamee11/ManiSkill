@@ -121,6 +121,13 @@
 - τ₀-WM 当前正在以双臂预训练接口运行；其 action/proprio 语义与 14D/16D 契约不一致，适合迁移消融而不是首个统一策略。DreamDojo 是 world-model/trajectory 候选，未提供可直接比较的 action policy 接口。
 - 决策不变：ManiSkill 是新的 object-centric 数据与 GT 评测主场，DiT4DiT 先回答“当前 object information 是否改善 action”；仅在此 gate 有闭环收益后，再投入 X-WAM 数据转换、权重加载和 token fusion。
 
+### 2026-07-16 — backup backbone readiness re-audit
+
+- X-WAM 官方 checkpoint 已发布，仓库总量约 117 GB，包含 pretrained、RoboCasa-SFT 与 RoboTwin-SFT；但本机仍没有 X-WAM checkpoint，且推理还依赖 Wan2.2-TI2V-5B。其 16D proprio、14D per-arm 7D delta action、单臂 zero/mask 与多视图 RGB-D 接口仍是 Franka/Piper 结构上最匹配的候选，但当前不能执行 forward。
+- τ₀-WM 本机已有约 21 GB 基础权重和约 27 GB Wan2.2 基座；本地仓库已有 `action_in_dim=7`、`dual_arm=false` 的 RLBench downstream head、训练配置和部署入口。它与 canonical 双臂契约不直接同构，但如果 DiT4DiT 失败，它是当前最快能复用 7D action 数据进入后训练的备选。
+- DreamDojo 已发布 2B/14B world-model 权重与 post-training code，但当前接口重点是 action-conditioned future generation，没有与现有 Panda 7D controller command 直接对齐的 action-policy 输出；保留为 dynamics/trajectory 辅助，不进入第一轮 policy 切换。
+- 更新后的两种排序：当前主线仍为 DiT4DiT；按“最短切换时间”是 τ₀-WM 第二，按“长期 Franka/Piper 结构同构性”是 X-WAM 第二。未新增适配代码，因为 X-WAM 无本地权重无法留下可运行检查，而 τ₀-WM 已有现成训练/部署框架；只有 DiT4DiT 闭环 gate 失败或 X-WAM 权重下载完成时才启动对应适配。
+
 ### 2026-07-13 13:05:00 UTC — segmentation-depth object localization proxy
 
 - 设置：v2 派生器从 raw `segmentation`、毫米 `depth`、逐帧 `intrinsic_cv (3,3)` 与 `extrinsic_cv (3,4)`回投 object actor-ID 像素到 world，输出 `object_segdepth_centroid_world (T,3)`、`object_segdepth_valid (T,1)` 与相对于 simulator object center 的误差。object pose 只用于误差标签，不参与回投。

@@ -82,8 +82,8 @@ arm_present                   : (A,) bool
 ## 4. 模型路线
 
 1. **首个因果 gate：DiT4DiT。** 保持视觉和 action diffusion 主干不变，先比较 robot-only 与当前时刻 GT continuous object condition。现有 loader 可拼接具名 state key，但 RLBench 的旧 EORT config 会 q99-normalize `object_interaction_state`，不可复用到离散 phase；phase 必须暂时不输入，或新增离散 embedding 路径。只在 object condition 带来同数据、同训练预算、留出任务的闭环收益后，再接入预测 token。DiT4DiT 是最低风险的“对象信息是否有用”检验，不是最终跨机器人 backbone。
-2. **最终主线候选：X-WAM。** 本地源码审计确认其 `RobotDataset` 固定为 16D proprio（每臂 `xyz+wxyz+gripper`）和 14D action（每臂 `Δxyz+Δaxisangle+gripper`），缺失右臂由 zero+mask 表示；因此它与 Franka/Piper 的目标契约直接对齐。它也原生读取多视图 RGB-D。当前本地 `checkpoints/` 不存在，README 指向外部预训练/后训练权重；在权重实际取得、checksum/加载可验证前，它只能是第二阶段候选，不能替代已可运行的 DiT4DiT gate。获得权重后，将 object token 作为独立条件 token 流加入 action/proprio fusion，而非把类别 phase 拼进连续 proprio，并保留不加 token 的同数据基线。
-3. **迁移消融：τ₀-WM。** 仅比较其预训练视频/action trunk 在统一动作适配器上的收益。20D 双臂相对 EEF-6D 与本契约不同，action input/output 层可能重初始化；必须报告 mismatch、冻结/微调范围与单臂占位策略。
+2. **结构最匹配的中期候选：X-WAM。** 本地源码审计确认其 `RobotDataset` 固定为 16D proprio（每臂 `xyz+wxyz+gripper`）和 14D action（每臂 `Δxyz+Δaxisangle+gripper`），缺失右臂由 zero+mask 表示；因此它与 Franka/Piper 的目标契约直接对齐。它也原生读取多视图 RGB-D。官方已发布约 117 GB 的 pretrained、RoboCasa-SFT 与 RoboTwin-SFT 权重，但当前本地 `checkpoints/` 仍不存在，且还需 Wan2.2-TI2V-5B 基座；在下载、checksum、单臂 mask、RGB-D 编码和小规模 forward 验证前，它不能称为可运行 baseline。获得权重后，将 object token 作为独立条件 token 流加入 action/proprio fusion，而非把类别 phase 拼进连续 proprio，并保留不加 token 的同数据基线。
+3. **最快可切换的近期备选：τ₀-WM。** 本机已有约 21 GB τ₀-WM 权重和约 27 GB Wan2.2 基座，仓库内已有 `action_in_dim=7`、`dual_arm=false` 的 RLBench 后训练/部署入口，因此如果 DiT4DiT gate 很差，它比尚未下载权重的 X-WAM 更快进入同数据适配。它的原始预训练接口仍是双臂 20D relative EEF-6D，与本契约不同；切换时必须使用单臂 7D downstream head，并重新验证 Panda controller action 的 frame、归一化、gripper 与 closed-loop replay，不能把已有 RLBench checkpoint 当作 ManiSkill checkpoint。
 4. **后续辅助：DreamDojo。** 用于生成/筛选轨迹、学习对象未来状态或规划候选，不作为首个端到端 action policy；需要独立 action head 和动作执行评估才有价值。
 
 ## 5. 可执行门槛

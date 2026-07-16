@@ -143,6 +143,12 @@
 - 精确变更：未改模型或数据；审计 X-WAM 数据加载器、模型配置和本地权重目录，并把 16D/14D 双臂 mask 接口、无本地 checkpoint 的事实和后续门槛写入跨机器人契约与风险台账。
 - 决策：保持 DiT4DiT 为首个 ManiSkill oracle 因果 gate；X-WAM 为在 checkpoint 验证后的主线候选；τ₀-WM 仅作预训练迁移消融，DreamDojo 仅作未来状态/轨迹辅助。
 
+## 2026-07-16 — backup backbone readiness 更新
+
+- 原因：X-WAM 官方已在初次审计后发布 checkpoint，需要区分“长期结构匹配”与“当前最快可切换”两种 baseline 排序。
+- 精确变更：未改模型、训练、数据或部署代码；更新跨机器人契约、实验分析和风险台账，记录 X-WAM checkpoint 总量约 117 GB 但本地未下载、τ₀-WM 本地已有约 21 GB 权重与 7D 单臂 downstream 入口、DreamDojo 仍无直接 Panda 7D action-policy 输出。
+- 决策：DiT4DiT 保持主线；若其闭环 gate 失败，近期优先切 τ₀-WM；X-WAM 在权重下载及 forward gate 通过后作为 Franka/Piper 结构最匹配的中期候选。没有新增无法验证的适配器。
+
 ## 2026-07-13 13:05:00 UTC — v2 segmentation-depth object localization proxy
 
 - 原因：真实感知路线需要先验证现有 RGB-D、相机标定与 object mask 能否提供可审计的几何观测，而不是直接把 simulator object pose 当作视觉定位结果。
