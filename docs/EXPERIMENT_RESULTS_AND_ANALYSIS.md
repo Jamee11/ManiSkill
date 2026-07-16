@@ -1,5 +1,11 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 18:57 UTC - Interaction-phase distribution QA
+
+- Added shard-level counts for the existing task-specific phases. Push class 2 means measured contact while the object moves; Pick class 2 means native grasp detected, so the counts are reported per task and are not treated as one shared semantic class.
+- Collection audit now rejects a shard with no class-2 interaction or no class-3 success. This is a data-coverage gate, not a phase predictor or policy input; a discrete model head remains deferred until the robot-only/oracle object gate establishes value and cross-task phase semantics are fixed.
+- Fresh CPU-only derivation of the retained fixed controller trajectories reported Push counts `0/1/2/3 = 48/0/14/9` over 71 steps and Pick `36/1/33/4` over 74 steps. This validates aggregation on real HDF5, not large-scale phase balance.
+
 ## 2026-07-16 18:45 UTC - Collection source-provenance audit
 
 - The read-only training gate now consumes metadata already written beside controller HDF5 rather than creating another manifest. It rejects unexpected task/visual environment IDs, observation/control/simulation backends, seed disagreement, missing source commit, and mixed commits across shards.

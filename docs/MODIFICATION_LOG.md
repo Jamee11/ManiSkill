@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-16 18:57 UTC - Gate interaction-phase coverage before training
+
+- Reason: Push/Pick phase labels were persisted per frame but absent from shard summaries, so a large collection could pass visibility/action checks while containing no useful push-motion or grasp interval.
+- Change: The existing v2 summary now reports task-specific phase 0/1/2/3 counts plus interaction/progress/success totals. The read-only collection audit requires counts to cover every step and each shard to contain phase 2 task interaction and phase 3 success. Labels remain simulator-only QA targets and are not added to policy input.
+- Verification: Focused derivation/audit tests pass; fresh read-only derivations of retained Push and Pick controller trajectories report phase histograms without simulation or training.
+
 ## 2026-07-16 18:45 UTC - Audit simulator source and environment provenance
 
 - Reason: Controller records already contained commit/environment metadata, but the training preflight did not reject a collection assembled from different ManiSkill revisions or an unexpected environment/control backend.

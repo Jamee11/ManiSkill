@@ -102,6 +102,9 @@ def audit_collection(
 
             summary = _json(derived / "summary.json")
             qa = summary.get("visibility_qa")
+            phase_qa = summary.get("phase_qa") or {}
+            phase_counts = phase_qa.get("counts") or {}
+            expected_phase_key = f"{'push' if task == 'push_cube' else 'pick'}_interaction_phase"
             if (
                 summary.get("oracle") is not True
                 or summary.get("source_control_mode") != "pd_ee_delta_pose"
@@ -110,8 +113,13 @@ def audit_collection(
                 or qa.get("total_steps") != summary.get("steps")
                 or not 0 <= qa.get("relational_visible_steps", -1) <= qa["total_steps"]
                 or not 0 <= qa.get("relational_segdepth_valid_steps", -1) <= qa["total_steps"]
+                or phase_qa.get("phase_key") != expected_phase_key
+                or set(phase_counts) != {"0", "1", "2", "3"}
+                or sum(phase_counts.values()) != summary.get("steps")
+                or phase_counts["2"] <= 0
+                or phase_counts["3"] <= 0
             ):
-                raise ValueError(f"{name} summary/provenance/visibility QA is incomplete")
+                raise ValueError(f"{name} summary/provenance/visibility/phase QA is incomplete")
 
             for export in exports:
                 condition, dataset_tail = EXPORTS[export]
@@ -126,7 +134,7 @@ def audit_collection(
                     raise ValueError(f"{name} {export} LeRobot contract differs from source shard")
 
             report["shards"].append(
-                {"name": name, "episodes": len(seed_rows), "steps": summary["steps"], **qa}
+                {"name": name, "episodes": len(seed_rows), "steps": summary["steps"], "phase_qa": phase_qa, **qa}
             )
 
     report["episodes"] = sum(row["episodes"] for row in report["shards"])

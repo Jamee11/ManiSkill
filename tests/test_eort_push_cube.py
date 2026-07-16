@@ -152,6 +152,8 @@ class PushCubeEORTTest(unittest.TestCase):
                     "occluder_active_steps": 2,
                 },
             )
+            self.assertEqual(summary["phase_qa"]["counts"], {"0": 1, "1": 0, "2": 1, "3": 1})
+            self.assertEqual(summary["phase_qa"]["task_progress_steps"], 1)
             manifest = json.loads((root / "derived" / "manifest.jsonl").read_text())
             self.assertEqual(manifest["physical_contact"]["source"], "robot_obj_contact_force_norm")
             self.assertEqual(manifest["push_interaction_phase_labels"]["2"], "measured_contact_while_object_moves")
@@ -201,6 +203,7 @@ class PushCubeEORTTest(unittest.TestCase):
                 trajectory, root / "derived_pick", schema="objectcentric_v2"
             )
             self.assertEqual(pick_summary["schema_version"], module.PICK_CUBE_OBJECTCENTRIC_V2_SCHEMA_VERSION)
+            self.assertEqual(pick_summary["phase_qa"]["phase_key"], "pick_interaction_phase")
             pick_manifest = json.loads((root / "derived_pick" / "manifest.jsonl").read_text())
             self.assertEqual(pick_manifest["pick_interaction_phase_labels"]["2"], "native_grasp_detected")
             with np.load(root / "derived_pick" / "traj_0.npz") as labels:

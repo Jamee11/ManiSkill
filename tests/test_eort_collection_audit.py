@@ -32,6 +32,7 @@ def _collection(root: Path, split: str, seed: int, commit: str = "abc123") -> No
     _write(derived / "summary.json", {
         "oracle": True, "source_control_mode": "pd_ee_delta_pose", "trajectories": 1, "steps": 3,
         "visibility_qa": {"total_steps": 3, "relational_visible_steps": 2, "relational_segdepth_valid_steps": 1},
+        "phase_qa": {"phase_key": "push_interaction_phase", "counts": {"0": 1, "1": 0, "2": 1, "3": 1}},
     })
     dataset = root / "lerobot" / split / "oracle_metric/maniskill_eort_push_cube_256_fixed_lerobot/meta/conversion_summary.json"
     _write(dataset, {"episodes": 1, "action_representation": "metric_task_delta_pose", "condition_source": "oracle"})
@@ -47,6 +48,7 @@ class CollectionAuditTest(unittest.TestCase):
             self.assertEqual(report["episodes"], report["unique_simulator_seeds"])
             self.assertEqual(report["episodes"], 2)
             self.assertEqual(report["maniskill_commit"], "abc123")
+            self.assertEqual(report["shards"][0]["phase_qa"]["counts"]["2"], 1)
 
             _collection(root, "val", 20, commit="different")
             with self.assertRaisesRegex(ValueError, "mixes ManiSkill commits"):
@@ -54,6 +56,14 @@ class CollectionAuditTest(unittest.TestCase):
 
             _collection(root, "val", 10)
             with self.assertRaisesRegex(ValueError, "appears in both"):
+                audit_collection(root, "push_cube", ["train", "val"], ["fixed"], "metric_task_delta_pose", ["oracle"])
+
+            _collection(root, "val", 20)
+            summary_path = root / "push_cube/val/fixed/derived_controller_goal_segdepth/summary.json"
+            summary = json.loads(summary_path.read_text())
+            summary["phase_qa"]["counts"] = {"0": 2, "1": 0, "2": 0, "3": 1}
+            _write(summary_path, summary)
+            with self.assertRaisesRegex(ValueError, "phase QA"):
                 audit_collection(root, "push_cube", ["train", "val"], ["fixed"], "metric_task_delta_pose", ["oracle"])
 
 

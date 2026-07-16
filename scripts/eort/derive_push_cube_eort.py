@@ -611,6 +611,16 @@ def derive_dataset(
                 ),
             }
         )
+        phase = np.concatenate([arrays[task_spec["phase_key"]][:, 0] for _, arrays in outputs])
+        phase_counts = np.bincount(phase, minlength=len(task_spec["phase_labels"]))
+        summary["phase_qa"] = {
+            "phase_key": task_spec["phase_key"],
+            "labels": task_spec["phase_labels"],
+            "counts": {str(index): int(count) for index, count in enumerate(phase_counts)},
+            "interaction_steps": int(phase_counts[1] + phase_counts[2]),
+            "task_progress_steps": int(phase_counts[2]),
+            "success_steps": int(phase_counts[3]),
+        }
         if summary["segmentation_visibility"]:
             object_visible = np.concatenate([arrays["object_visible"][:, 0] for _, arrays in outputs])
             goal_visible = np.concatenate([arrays["goal_visible"][:, 0] for _, arrays in outputs])
