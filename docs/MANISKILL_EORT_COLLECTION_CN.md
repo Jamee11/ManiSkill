@@ -168,7 +168,7 @@ train/val/test 全部采完后，在排 tracker 或 policy 训练前运行：
   --future-targets
 ```
 
-该命令只读，不创建或修改数据。它要求三个 split × 三个视觉 variant 全部存在，并检查 controller JSON 中的 ManiSkill commit、环境 ID、obs/control/sim backend、成功 seed 与 seed manifest 一致且全局无重复，同时检查 seed/sidecar trajectory、action provenance、visibility QA、phase 0/1/2/3 分布，以及 oracle/proxy/corrupt LeRobot episode 数、condition、action 与 future-target 标记。每个 shard 必须含 phase 2（Push 的推动接触或 Pick 的抓取）和 phase 3 success，所有 shard 必须来自同一 ManiSkill commit。普通 metric 数据去掉 `--future-targets`。任何一项不一致都会非零退出；不要绕过后继续训练。只检查单个 smoke split 时可显式设置 `--splits train --exports oracle`。
+每个成功完成的 shard 还会写 `runtime_manifest.json`，固定记录 Python、ManiSkill、Torch、SAPIEN、NumPy、h5py 版本和显式 renderer GPU。该命令只读，不创建或修改数据；它要求三个 split × 三个视觉 variant 全部存在，并检查 runtime、ManiSkill commit、环境 ID、obs/control/sim backend、成功 seed、sidecar/action provenance、visibility QA、phase 0/1/2/3 分布，以及 LeRobot condition/action/future-target 标记。每个 shard 必须含 phase 2（Push 的推动接触或 Pick 的抓取）和 phase 3 success；所有 shard 必须来自同一 commit 和 Python/package runtime。任何一项不一致都会非零退出；不要绕过后继续训练。只检查单个 smoke split 时可显式设置 `--splits train --exports oracle`。
 
 tracker 不读 LeRobot 视频，因为它需要 raw metric depth 与 camera calibration。自动 launcher 选择 `*.pd_ee_delta_pose.physx_cpu.h5` 与 `derived_controller_goal_segdepth`；只按同一 physical trajectory 分组切分，不得把 train raw 与 val/test raw 拼在一起训练。
 

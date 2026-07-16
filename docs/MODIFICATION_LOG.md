@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-16 19:05 UTC - Persist and audit the collection runtime
+
+- Reason: Controller metadata recorded the source commit and environment configuration but not the target machine's Python/Torch/SAPIEN versions, leaving an external collection impossible to reproduce exactly.
+- Change: After a shard completes all exports, the existing wrapper writes one `runtime_manifest.json` with Python, ManiSkill, Torch, SAPIEN, NumPy, h5py and the explicit renderer GPU. The read-only audit requires complete manifests and one shared Python/package runtime across requested shards. Raw HDF5, simulator behavior and training inputs are unchanged.
+- Verification: Shell/Python syntax, wrapper dry-run and focused audit regression pass. The local environment resolves Python 3.10.20, ManiSkill 3.0.1, Torch 2.7.1+cu128, SAPIEN 3.0.3, NumPy 1.26.4 and h5py 3.16.0. No collection or training was launched.
+
 ## 2026-07-16 18:57 UTC - Gate interaction-phase coverage before training
 
 - Reason: Push/Pick phase labels were persisted per frame but absent from shard summaries, so a large collection could pass visibility/action checks while containing no useful push-motion or grasp interval.

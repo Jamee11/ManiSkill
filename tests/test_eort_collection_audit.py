@@ -11,7 +11,7 @@ def _write(path: Path, value) -> None:
     path.write_text(json.dumps(value) + "\n")
 
 
-def _collection(root: Path, split: str, seed: int, commit: str = "abc123") -> None:
+def _collection(root: Path, split: str, seed: int, commit: str = "abc123", torch_version: str = "2.7.1") -> None:
     shard = root / "push_cube" / split / "fixed"
     _write(shard / "raw/Env/motionplanning/data.pd_ee_delta_pose.physx_cpu.seed_manifest.json", {
         "saved_trajectory_seeds": [{"trajectory": "traj_0", "seed": seed, "success": True}]
@@ -22,6 +22,10 @@ def _collection(root: Path, split: str, seed: int, commit: str = "abc123") -> No
         }},
         "commit_info": {"commit_id": commit, "branch": "test"},
         "episodes": [{"episode_seed": seed, "success": True}],
+    })
+    _write(shard / "runtime_manifest.json", {
+        "schema": "maniskill_eort_runtime_v1", "python": "3.10.20", "cuda_visible_devices": "7",
+        "packages": {"mani_skill": "3.0.1", "torch": torch_version, "sapien": "3.0.3", "numpy": "1.26.4", "h5py": "3.16.0"},
     })
     derived = shard / "derived_controller_goal_segdepth"
     _write(derived / "manifest.jsonl", {
@@ -48,10 +52,15 @@ class CollectionAuditTest(unittest.TestCase):
             self.assertEqual(report["episodes"], report["unique_simulator_seeds"])
             self.assertEqual(report["episodes"], 2)
             self.assertEqual(report["maniskill_commit"], "abc123")
+            self.assertEqual(report["runtime"]["packages"]["sapien"], "3.0.3")
             self.assertEqual(report["shards"][0]["phase_qa"]["counts"]["2"], 1)
 
             _collection(root, "val", 20, commit="different")
             with self.assertRaisesRegex(ValueError, "mixes ManiSkill commits"):
+                audit_collection(root, "push_cube", ["train", "val"], ["fixed"], "metric_task_delta_pose", ["oracle"])
+
+            _collection(root, "val", 20, torch_version="different")
+            with self.assertRaisesRegex(ValueError, "mixes Python/package runtimes"):
                 audit_collection(root, "push_cube", ["train", "val"], ["fixed"], "metric_task_delta_pose", ["oracle"])
 
             _collection(root, "val", 10)

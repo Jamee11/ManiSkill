@@ -1,5 +1,10 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 19:05 UTC - Reproducible external collection runtime
+
+- The production wrapper now records its actual interpreter/package versions only after a shard completes, and the training audit rejects incomplete or mixed runtimes. This reuses stdlib package metadata and adds no dependency or model/data field.
+- Local static verification resolves Python `3.10.20`, ManiSkill `3.0.1`, Torch `2.7.1+cu128`, SAPIEN `3.0.3`, NumPy `1.26.4`, h5py `3.16.0`. These are not evidence that another machine's driver/GPU capacity is adequate; its first job remains a one-trajectory smoke.
+
 ## 2026-07-16 18:57 UTC - Interaction-phase distribution QA
 
 - Added shard-level counts for the existing task-specific phases. Push class 2 means measured contact while the object moves; Pick class 2 means native grasp detected, so the counts are reported per task and are not treated as one shared semantic class.

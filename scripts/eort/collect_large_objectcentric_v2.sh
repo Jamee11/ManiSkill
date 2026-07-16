@@ -97,7 +97,8 @@ for index in "${!variants[@]}"; do
   controller_seed_manifest="${controller_path%.h5}.seed_manifest.json"
   derived_dir="${shard_root}/derived_controller_goal_segdepth"
   preview_path="${shard_root}/qa/${trajectory_name}_preview.mp4"
-  if [[ -e "${trajectory_path}" || -e "${source_seed_manifest}" || -e "${controller_path}" || -e "${controller_seed_manifest}" || -e "${derived_dir}" || -e "${preview_path}" ]]; then
+  runtime_manifest="${shard_root}/runtime_manifest.json"
+  if [[ -e "${trajectory_path}" || -e "${source_seed_manifest}" || -e "${controller_path}" || -e "${controller_seed_manifest}" || -e "${derived_dir}" || -e "${preview_path}" || -e "${runtime_manifest}" ]]; then
     echo "Refusing to overwrite shard output under ${shard_root}" >&2
     exit 1
   fi
@@ -147,4 +148,18 @@ for index in "${!variants[@]}"; do
       --output-root "${output_root}" --dataset-name "${dataset_name}" --fps "${FPS}" \
       --action-source "${ACTION_SOURCE}" "${future_export_args[@]}" "${export_args[@]}"
   done
+  "${PYTHON}" - "${runtime_manifest}" "${CUDA_VISIBLE_DEVICES}" <<'PY'
+import importlib.metadata as metadata
+import json
+import platform
+import sys
+from pathlib import Path
+
+Path(sys.argv[1]).write_text(json.dumps({
+    "schema": "maniskill_eort_runtime_v1",
+    "python": platform.python_version(),
+    "packages": {name: metadata.version(name) for name in ("mani_skill", "torch", "sapien", "numpy", "h5py")},
+    "cuda_visible_devices": sys.argv[2],
+}, indent=2, sort_keys=True) + "\n")
+PY
 done

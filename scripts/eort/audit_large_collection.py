@@ -48,6 +48,7 @@ def audit_collection(
     prefix = f"maniskill_eort_{task}_256"
     owners: dict[int, str] = {}
     source_commits: set[str] = set()
+    runtimes: dict[str, dict] = {}
     report = {"root": str(root), "task": task, "action_source": action_source, "future_targets": future_targets, "shards": []}
 
     for split in splits:
@@ -63,6 +64,18 @@ def audit_collection(
                 raise ValueError(f"{name} has missing or unsuccessful seeds")
             metadata_path = seed_path.with_name(seed_path.name.removesuffix(".seed_manifest.json") + ".json")
             metadata = _json(metadata_path)
+            runtime = _json(shard / "runtime_manifest.json")
+            packages = runtime.get("packages") or {}
+            if (
+                runtime.get("schema") != "maniskill_eort_runtime_v1"
+                or not runtime.get("python")
+                or not runtime.get("cuda_visible_devices")
+                or set(packages) != {"mani_skill", "torch", "sapien", "numpy", "h5py"}
+                or not all(packages.values())
+            ):
+                raise ValueError(f"{name} runtime manifest is incomplete")
+            signature = {"python": runtime["python"], "packages": packages}
+            runtimes[json.dumps(signature, sort_keys=True)] = signature
             env_info, commit_info = metadata.get("env_info", {}), metadata.get("commit_info", {})
             expected_env = f"{'PushCube' if task == 'push_cube' else 'PickCube'}EORT{'CameraRand' if variant == 'camera_rand' else 'Occluded' if variant == 'occluded' else ''}-v1"
             env_kwargs = env_info.get("env_kwargs", {})
@@ -142,7 +155,10 @@ def audit_collection(
     report["unique_simulator_seeds"] = len(owners)
     if len(source_commits) != 1:
         raise ValueError(f"Collection mixes ManiSkill commits: {sorted(source_commits)}")
+    if len(runtimes) != 1:
+        raise ValueError("Collection mixes Python/package runtimes")
     report["maniskill_commit"] = source_commits.pop()
+    report["runtime"] = next(iter(runtimes.values()))
     return report
 
 
