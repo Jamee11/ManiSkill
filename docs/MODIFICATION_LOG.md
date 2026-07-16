@@ -238,3 +238,8 @@
 - 原因：Panda normalized command 可逆解码已验证，但正式大规模 wrapper 仍只能生成 robot-specific LeRobot action，无法直接排跨机器人 action gate。
 - 改动：为大规模采集脚本增加显式 `MANISKILL_EORT_ACTION_SOURCE`，支持默认 Panda command 或 metric task delta pose；metric 数据自动写入独立的 `*_metric` LeRobot 根目录，raw、sidecar、视频与已有 controller 数据均不替换。
 - 验证：shell 语法和 dry-run 通过；真实三视觉分支 metric 数据已由 DiT4DiT loader 读为 `[71,65,66]`，sample shape 为 `(1,64)/(8,7)/(3,224,224)`。未启动训练。
+# 2026-07-16 18:45 UTC - Add a fail-fast collection audit before training
+
+- Reason: Collection shards already carried seed, sidecar, visibility and LeRobot metadata, but no single command proved that all train/val/test inputs were complete, disjoint and action-compatible before an expensive training run.
+- Change: Added one read-only stdlib audit that checks successful unique simulator seeds, seed-to-sidecar identity/count, verified action provenance, relational visibility QA, and LeRobot episode/condition/action contracts across requested splits and variants. It does not inspect or change model architecture, raw data or training code.
+- Verification: The focused unittest passed, including intentional train/val seed leakage rejection. The real three-variant Push metric smoke passed with 3 unique seeds, 3 episodes and 202 steps. No training was launched.

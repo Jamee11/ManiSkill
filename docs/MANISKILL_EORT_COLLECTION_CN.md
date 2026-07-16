@@ -144,6 +144,20 @@ bash scripts/eort/collect_large_objectcentric_v2.sh
 
 metric action 的目录是上述路径追加 `_metric`，mixture 名追加 `_metric`，训练设置 `MANISKILL_EORT_ACTION_SOURCE=metric_task_delta_pose`。两套 action 数据不得写入同一 LeRobot 根目录或在一个 run 中混用。
 
+### 训练前 collection 硬检查
+
+train/val/test 全部采完后，在排 tracker 或 policy 训练前运行：
+
+```bash
+/remote-home/jinminghao/miniconda3/envs/maniskill-eort-v1/bin/python \
+  scripts/eort/audit_large_collection.py \
+  --root /remote-home/jinminghao/datasets/maniskill_eort_large_v2 \
+  --task push_cube \
+  --action-source metric_task_delta_pose
+```
+
+该命令只读，不创建或修改数据。它要求三个 split × 三个视觉 variant 全部存在，并检查成功 seed 全局无重复、seed/sidecar trajectory 对齐、每条 action provenance、visibility QA，以及 oracle/proxy/corrupt LeRobot episode 数、condition 与 action 语义。任何一项不一致都会非零退出；不要绕过后继续训练。只检查单个 smoke split 时可显式设置 `--splits train --exports oracle`。
+
 tracker 不读 LeRobot 视频，因为它需要 raw metric depth 与 camera calibration。自动 launcher 选择 `*.pd_ee_delta_pose.physx_cpu.h5` 与 `derived_controller_goal_segdepth`；只按同一 physical trajectory 分组切分，不得把 train raw 与 val/test raw 拼在一起训练。
 
 ### 预览视频

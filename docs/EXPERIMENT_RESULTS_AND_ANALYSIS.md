@@ -230,3 +230,8 @@
 - `collect_large_objectcentric_v2.sh` 新增显式 `MANISKILL_EORT_ACTION_SOURCE=metric_task_delta_pose`；默认仍为已验证的 Panda normalized command。metric LeRobot 视图写入独立的 `*_metric` 根目录，不覆盖 raw、sidecar或 controller 视图。
 - 对既有 Push fixed/camera-random/occluded 正式 smoke 重新派生 sidecar并导出 metric action 后，DiT4DiT 三组件 loader 长度为 `[71,65,66]`，sample shape 为 state `(1,64)`、action `(8,7)`、image `(3,224,224)`。
 - 这证明数据构造与模型入口连通，不是训练结果，也不证明 Franka/Piper 可执行；真机频率、task-from-base 标定、限幅和夹爪 adapter 仍是阻塞项。
+# 2026-07-16 18:45 UTC - 大规模 collection 训练前审计 gate
+
+- 新增只读 `audit_large_collection.py`，统一检查 train/val/test × fixed/camera-random/occluded 的成功 seed、全局 seed 泄漏、sidecar 数量/trajectory ID、action provenance、visibility QA 与 LeRobot conversion contract。
+- unittest 通过；真实 Push metric 三视觉 smoke 通过，汇总 3 unique simulator seeds、3 episodes、202 steps，逐分支 relational-valid 为 71/71、65/65、66/66。
+- 该结果只验证 audit 与当前小样本链路；正式 500/100/200 collection 仍必须在外机完成后重新运行，不以本次 smoke 代替规模验证。
