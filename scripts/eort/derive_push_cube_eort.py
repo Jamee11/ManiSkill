@@ -25,6 +25,7 @@ OBJECTCENTRIC_V2_ENV_IDS = (
     OBJECTCENTRIC_V2_ENV_ID,
     "PushCubeEORTCameraRand-v1",
     "PushCubeEORTOccluded-v1",
+    "PushCubeEORTGeometryRand-v1",
     "PickCubeEORT-v1",
     "PickCubeEORTCameraRand-v1",
     "PickCubeEORTOccluded-v1",
@@ -55,6 +56,7 @@ OBJECTCENTRIC_V2_TASK_SPECS = {
     "PushCubeEORT-v1": PUSH_CUBE_TASK_SPEC,
     "PushCubeEORTCameraRand-v1": PUSH_CUBE_TASK_SPEC,
     "PushCubeEORTOccluded-v1": PUSH_CUBE_TASK_SPEC,
+    "PushCubeEORTGeometryRand-v1": PUSH_CUBE_TASK_SPEC,
     "PickCubeEORT-v1": PICK_CUBE_TASK_SPEC,
     "PickCubeEORTCameraRand-v1": PICK_CUBE_TASK_SPEC,
     "PickCubeEORTOccluded-v1": PICK_CUBE_TASK_SPEC,
@@ -364,6 +366,12 @@ def derive_trajectory_objectcentric_v2(
         object_extent = np.full((steps + 1, 3), 0.04, dtype=np.float32)
     if np.any(object_extent <= 0) or not np.allclose(object_extent, object_extent[:1]):
         raise ValueError(f"{group.name} object extent must be positive and fixed within an episode")
+    if "obj_friction" in group["obs/extra"]:
+        object_friction = _finite_array(group, "obs/extra/obj_friction", steps, 2)
+    else:
+        object_friction = np.full((steps + 1, 2), 0.3, dtype=np.float32)
+    if np.any(object_friction <= 0) or not np.allclose(object_friction, object_friction[:1]):
+        raise ValueError(f"{group.name} object friction must be positive and fixed within an episode")
     object_linear_velocity = _finite_array(
         group, "obs/extra/obj_linear_velocity", steps, 3
     )
@@ -449,6 +457,7 @@ def derive_trajectory_objectcentric_v2(
     arrays.update(
         {
             "object_extent": object_extent[:1],
+            "object_friction": object_friction[:1],
             "object_linear_velocity": object_linear_velocity[:-1],
             "object_angular_velocity": object_angular_velocity[:-1],
             "eef_transition_local": _local_eef_transition(
@@ -530,6 +539,12 @@ def derive_dataset(
             else "legacy_fixed_panda_cube_0.04m"
             for key in _trajectory_keys(file)
         }
+        friction_sources = {
+            key: "obs/extra/obj_friction"
+            if "obj_friction" in file[key]["obs/extra"]
+            else "legacy_default_material_0.3"
+            for key in _trajectory_keys(file)
+        }
         outputs = [(key, derive(file[key])) for key in _trajectory_keys(file)]
 
     output_dir.mkdir(parents=True)
@@ -585,6 +600,12 @@ def derive_dataset(
             records[-1]["object_extent"] = {
                 "source": extent_sources[trajectory_id],
                 "layout": "full xyz side lengths in meters",
+                "static_within_episode": True,
+                "policy_input": False,
+            }
+            records[-1]["object_friction"] = {
+                "source": friction_sources[trajectory_id],
+                "layout": "static_friction + dynamic_friction",
                 "static_within_episode": True,
                 "policy_input": False,
             }

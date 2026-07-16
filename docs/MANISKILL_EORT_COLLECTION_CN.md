@@ -27,6 +27,7 @@ v2 不替换 v1，而是使用独立的 `PushCubeEORT-v1` 和输出目录。它�
 新采集的 v2 每条 `.npz` 额外包含：
 
 - `object_extent` `(1,3)`：目标物体完整 xyz 边长，单位米；raw HDF5 以 `(T+1,3)` 明确保存，sidecar 验证 episode 内固定后去重。它当前只作为 geometry/QA 标签，不进入 17D policy condition。旧 Panda EORT raw 可精确回填固定的 `[0.04,0.04,0.04]`，但正式 collection audit 只接受 raw 中显式存在的字段；
+- `object_friction` `(1,2)`：`[static_friction,dynamic_friction]`，raw HDF5 为 `(T+1,2)`；同样只作物理参数/QA 标签，不进入 policy。旧数据可回填 ManiSkill 默认 `[0.3,0.3]`，正式 audit 只接受显式 raw provenance；
 - `robot_obj_contact_force` `(T,3)`、`robot_obj_contact_force_norm` `(T,1)`、`physical_contact` `(T,1)`、`push_interaction_phase` `(T,1)`；`physical_contact` 使用 Panda hand/左右 finger 的 force norm 之和，避免向量抵消；
 - `object_linear_velocity` / `object_angular_velocity` `(T,3)`；
 - `ee_to_object_rotvec` `(T,3)`，由正确的 wxyz 相对旋转得到；
@@ -49,6 +50,14 @@ bash scripts/eort/collect_push_cube_objectcentric_v2.sh
 ```
 
 若需要跨 episode 的外部相机外参随机化，额外设置 `MANISKILL_EORT_ENV_ID=PushCubeEORTCameraRand-v1`。该环境在 reset 时随机一次相机 pose、episode 内保持不动；raw `sensor_param/base_camera/{intrinsic_cv,extrinsic_cv}` 是唯一的标定记录来源。固定相机与随机相机数据必须分开记录 split，不能将其混为同一泛化结论。
+
+可选的 `geometry_rand` shard 使用 `PushCubeEORTGeometryRand-v1`，每个 episode 以 simulator seed 重建 cube half-size `[0.017,0.023]m` 和静/动摩擦 `[0.15,0.60]`，并强制 `num_envs=1`、`reconfiguration_freq=1`。它不加入默认三视觉分支；只有 source/controller HDF5 的 extent/friction 逐项一致且 replay success 后，才可纳入训练：
+
+```bash
+MANISKILL_EORT_VARIANTS=geometry_rand \
+MANISKILL_EORT_CONTROLLER_REPLAY_ENVS=1 \
+bash scripts/eort/collect_large_objectcentric_v2.sh
+```
 
 v2 的首条真实 HDF5 已确认物理字段与 `obj_segmentation_id`/`goal_segmentation_id` 均为 `T+1`，而 derived labels 是 `T`；通过前不得将 v2 接入训练。批量阶段仍须检查 visibility fraction 分布，不能仅凭一条全可见轨迹声明感知鲁棒。
 

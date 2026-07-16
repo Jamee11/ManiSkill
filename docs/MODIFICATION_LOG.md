@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-16 19:33 UTC - Add an isolated seeded geometry/friction split
+
+- Reason: Fixed 4 cm/0.3-friction cubes cannot test whether object-centric dynamics generalize across basic physical variation. Scene-load geometry is absent from ordinary env state, so the split must reconfigure from the recorded episode seed and persist its actual parameters.
+- Change: Added optional `PushCubeEORTGeometryRand-v1`, limited to one environment, with `reconfiguration_freq=1`, half-size `[0.017,0.023]m` and shared static/dynamic friction `[0.15,0.60]`. All Push/Pick EORT raw observations now persist friction; sidecars and production audit require explicit `(1,2)` provenance. The existing three variants and current 17D DiT4DiT condition are unchanged.
+- Verification before runtime smoke: focused derivation/audit tests and syntax checks pass. Real source→controller replay and parameter equality remain pending and must be recorded before using this split for training.
+
 ## 2026-07-16 19:18 UTC - Persist object extent before domain randomization
 
 - Reason: The cross-embodiment schema declared object extent, but current raw/sidecar data omitted it. Adding size randomization first would therefore create an unobservable data-construction change and make replay/QA ambiguous.

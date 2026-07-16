@@ -77,7 +77,10 @@ def audit_collection(
             signature = {"python": runtime["python"], "packages": packages}
             runtimes[json.dumps(signature, sort_keys=True)] = signature
             env_info, commit_info = metadata.get("env_info", {}), metadata.get("commit_info", {})
-            expected_env = f"{'PushCube' if task == 'push_cube' else 'PickCube'}EORT{'CameraRand' if variant == 'camera_rand' else 'Occluded' if variant == 'occluded' else ''}-v1"
+            suffix = {"fixed": "", "camera_rand": "CameraRand", "occluded": "Occluded", "geometry_rand": "GeometryRand"}.get(variant)
+            if suffix is None or (variant == "geometry_rand" and task != "push_cube"):
+                raise ValueError(f"Unsupported variant {variant!r} for {task}")
+            expected_env = f"{'PushCube' if task == 'push_cube' else 'PickCube'}EORT{suffix}-v1"
             env_kwargs = env_info.get("env_kwargs", {})
             if (
                 env_info.get("env_id") != expected_env
@@ -112,6 +115,9 @@ def audit_collection(
                 and row.get("fields", {}).get("object_extent") == [1, 3]
                 and row.get("object_extent", {}).get("policy_input") is False
                 and row.get("object_extent", {}).get("source") == "obs/extra/obj_extent"
+                and row.get("fields", {}).get("object_friction") == [1, 2]
+                and row.get("object_friction", {}).get("source") == "obs/extra/obj_friction"
+                and row.get("object_friction", {}).get("policy_input") is False
                 for row in records
             ):
                 raise ValueError(f"{name} lacks verified {action_source} or object-extent provenance")

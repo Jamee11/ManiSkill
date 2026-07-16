@@ -90,6 +90,7 @@ class PushCubeEORTTest(unittest.TestCase):
                 extra.create_dataset("tcp_pose", data=tcp_pose)
                 extra.create_dataset("obj_pose", data=object_pose)
                 extra.create_dataset("obj_extent", data=np.tile([0.04, 0.04, 0.04], (4, 1)))
+                extra.create_dataset("obj_friction", data=np.tile([0.3, 0.3], (4, 1)))
                 extra.create_dataset("goal_pos", data=np.tile([1.0, 0.0, 0.0], (4, 1)))
                 extra.create_dataset(
                     "obj_linear_velocity",
@@ -164,8 +165,10 @@ class PushCubeEORTTest(unittest.TestCase):
             self.assertFalse(manifest["occluder_active"]["policy_input"])
             self.assertFalse(manifest["eef_transition_local"]["controller_command"])
             self.assertFalse(manifest["object_extent"]["policy_input"])
+            self.assertFalse(manifest["object_friction"]["policy_input"])
             with np.load(root / "derived" / "traj_0.npz") as labels:
                 np.testing.assert_allclose(labels["object_extent"], [[0.04, 0.04, 0.04]])
+                np.testing.assert_allclose(labels["object_friction"], [[0.3, 0.3]])
                 self.assertEqual(labels["physical_contact"].tolist(), [[False], [True], [True]])
                 self.assertEqual(labels["push_interaction_phase"].tolist(), [[0], [2], [3]])
                 self.assertEqual(labels["object_future_delta_pos"].shape, (3, 3, 3))
@@ -198,6 +201,7 @@ class PushCubeEORTTest(unittest.TestCase):
 
             with h5py.File(trajectory, "r+") as file:
                 del file["traj_0/obs/extra/obj_extent"]
+                del file["traj_0/obs/extra/obj_friction"]
             trajectory.with_suffix(".json").write_text(
                 json.dumps(
                     {"env_info": {"env_id": "PickCubeEORT-v1", "env_kwargs": {"control_mode": "pd_joint_pos"}}}
@@ -212,6 +216,7 @@ class PushCubeEORTTest(unittest.TestCase):
             pick_manifest = json.loads((root / "derived_pick" / "manifest.jsonl").read_text())
             self.assertEqual(pick_manifest["pick_interaction_phase_labels"]["2"], "native_grasp_detected")
             self.assertEqual(pick_manifest["object_extent"]["source"], "legacy_fixed_panda_cube_0.04m")
+            self.assertEqual(pick_manifest["object_friction"]["source"], "legacy_default_material_0.3")
             with np.load(root / "derived_pick" / "traj_0.npz") as labels:
                 self.assertEqual(labels["pick_interaction_phase"].tolist(), [[0], [2], [3]])
                 np.testing.assert_allclose(labels["object_extent"], [[0.04, 0.04, 0.04]])
@@ -274,15 +279,18 @@ class PushCubeEORTTest(unittest.TestCase):
             PushCubeEORTCameraRandEnv,
             PushCubeEORTEnv,
             PushCubeEORTOccludedEnv,
+            PushCubeEORTGeometryRandEnv,
         )
 
         self.assertEqual(gym.spec("PushCubeEORT-v1").id, "PushCubeEORT-v1")
         self.assertEqual(gym.spec("PushCubeEORTCameraRand-v1").id, "PushCubeEORTCameraRand-v1")
         self.assertEqual(gym.spec("PushCubeEORTOccluded-v1").id, "PushCubeEORTOccluded-v1")
+        self.assertEqual(gym.spec("PushCubeEORTGeometryRand-v1").id, "PushCubeEORTGeometryRand-v1")
         self.assertEqual(PushCubeEORTEnv.SUPPORTED_ROBOTS, ["panda"])
         self.assertEqual(PushCubeEORTEnv.EORT_CAMERA_RESOLUTION, 256)
         self.assertEqual(PushCubeEORTCameraRandEnv.CAMERA_EYE_JITTER, (0.08, 0.08, 0.05))
         self.assertEqual(PushCubeEORTOccludedEnv.OCCLUDER_PROBABILITY, 0.5)
+        self.assertEqual(PushCubeEORTGeometryRandEnv.CUBE_HALF_SIZE_RANGE, (0.017, 0.023))
 
     def test_pickcube_eort_is_registered_with_visual_goal_marker(self):
         import gymnasium as gym
