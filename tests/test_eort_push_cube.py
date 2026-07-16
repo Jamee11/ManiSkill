@@ -61,7 +61,9 @@ class PushCubeEORTTest(unittest.TestCase):
             root = Path(directory)
             trajectory = root / "push_cube_eort.h5"
             trajectory.with_suffix(".json").write_text(
-                json.dumps({"env_info": {"env_id": "PushCubeEORT-v1"}}),
+                json.dumps(
+                    {"env_info": {"env_id": "PushCubeEORT-v1", "env_kwargs": {"control_mode": "pd_joint_pos"}}}
+                ),
                 encoding="utf-8",
             )
             with h5py.File(trajectory, "w") as file:
@@ -171,7 +173,10 @@ class PushCubeEORTTest(unittest.TestCase):
                 np.testing.assert_allclose(labels["eef_transition_local"][:, 6], [0.0, 0.5, 1.0])
 
             trajectory.with_suffix(".json").write_text(
-                json.dumps({"env_info": {"env_id": "PickCubeEORT-v1"}}), encoding="utf-8"
+                json.dumps(
+                    {"env_info": {"env_id": "PickCubeEORT-v1", "env_kwargs": {"control_mode": "pd_joint_pos"}}}
+                ),
+                encoding="utf-8",
             )
             pick_summary = module.derive_dataset(
                 trajectory, root / "derived_pick", schema="objectcentric_v2"
@@ -181,6 +186,27 @@ class PushCubeEORTTest(unittest.TestCase):
             self.assertEqual(pick_manifest["pick_interaction_phase_labels"]["2"], "native_grasp_detected")
             with np.load(root / "derived_pick" / "traj_0.npz") as labels:
                 self.assertEqual(labels["pick_interaction_phase"].tolist(), [[0], [2], [3]])
+
+            controller_actions = np.zeros((3, 7), dtype=np.float32)
+            controller_actions[:, -1] = [-1, 0, 1]
+            with h5py.File(trajectory, "r+") as file:
+                del file["traj_0/actions"]
+                file["traj_0"].create_dataset("actions", data=controller_actions)
+            trajectory.with_suffix(".json").write_text(
+                json.dumps(
+                    {"env_info": {"env_id": "PushCubeEORT-v1", "env_kwargs": {"control_mode": "pd_ee_delta_pose"}}}
+                ),
+                encoding="utf-8",
+            )
+            module.derive_dataset(trajectory, root / "derived_controller", schema="objectcentric_v2")
+            controller_manifest = json.loads(
+                (root / "derived_controller" / "manifest.jsonl").read_text()
+            )
+            self.assertTrue(controller_manifest["panda_pd_ee_delta_pose_command"]["controller_command"])
+            with np.load(root / "derived_controller" / "traj_0.npz") as labels:
+                np.testing.assert_array_equal(
+                    labels["panda_pd_ee_delta_pose_command"], controller_actions
+                )
 
     def test_local_eef_transition_uses_current_eef_frame(self):
         module = load_module()

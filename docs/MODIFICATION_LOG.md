@@ -1,5 +1,18 @@
 # Modification Log
 
+## 2026-07-16 15:30:36 UTC — Build replay-verified Panda controller-command data path
+
+- 原因：真实 71-step replay 证明 `eef_transition_local` 经换帧后仍无法复现成功轨迹，TCP 位置 RMSE 8.65 cm、最大 11.08 cm；它不能继续作为正式 action-policy 主目标。
+- 精确变更：object-centric v2 deriver 现在读取 source metadata control mode；对官方成功 replay 的 `pd_ee_delta_pose` HDF5，额外持久化逐元素等于 source action 的 `panda_pd_ee_delta_pose_command(T,7)` 和明确 manifest。大规模 wrapper 先采 joint demo，再调用 ManiSkill 官方 replay，拒绝任何缺失/部分成功的 controller shard，复制同一 seed manifest 供 tracker 按物理 seed 分组，随后从 controller HDF5 派生、预览并导出 DiT4DiT。旧 `pd_joint_pos` 和 `eef_transition_local` 路径保留。
+- 风险约束：该 command 仅对 ManiSkill Panda 成立；Piper 与真机 Franka 尚无 adapter/replay 证据。PickCube visual/controller replay 仍需单独 GPU smoke。没有启动训练。
+- 验证：合成 controller sidecar 单测通过；现有真实成功 controller HDF5 派生出 71 行 transition 与 71 行 controller command，manifest 明确区分二者；DiT4DiT 端已完成 exact export 和三组件 loader gate。
+
+## 2026-07-16 15:18:24 UTC — Fix PushCube EORT state-only runtime
+
+- 原因：闭环 action replay 使用 `obs_mode=state_dict` 构造 `PushCubeEORT-v1` 时，`_get_obs_extra()` 调用 `torch.stack`，但任务模块遗漏了 `torch` 导入，环境在 reset 阶段报 `NameError`。
+- 精确变更：仅在 `push_cube_eort.py` 补充现有实现所需的 `import torch`；不改变 observation schema、physics、reward、success、controller 或数据。
+- 验证：环境可完成 reset 与 71-step replay；该 replay 最终失败，证明后续 blocker 是 action 语义而非此 import bug。详细结果记入实验分析。
+
 ## 2026-07-15 UTC - Add non-overwriting large-scale EORT collection pipeline
 
 - Reason: The prior 30 rendered PushCube pilot trajectories only smoke-tested the object-centric data path.  A reproducible external-GPU collection command is needed before tracker or DiT4DiT policy training can be scheduled, while preserving the raw simulator record as the source of truth.

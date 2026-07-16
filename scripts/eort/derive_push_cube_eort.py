@@ -339,13 +339,17 @@ def derive_trajectory_objectcentric_v2(
     camera: str,
     *,
     task: str,
+    control_mode: str,
     future_horizons: tuple[int, ...],
     contact_force_threshold: float,
 ) -> dict[str, np.ndarray]:
     arrays = derive_trajectory(group, camera)
     steps = len(arrays["action"])
-    if arrays["action"].shape[1] != 8 or np.any(np.abs(arrays["action"][:, 7]) > 1):
-        raise ValueError(f"{group.name} requires Panda (T,8) actions with gripper in [-1,1]")
+    expected_width = {"pd_joint_pos": 8, "pd_ee_delta_pose": 7}[control_mode]
+    if arrays["action"].shape[1] != expected_width or np.any(np.abs(arrays["action"][:, -1]) > 1):
+        raise ValueError(
+            f"{group.name} requires Panda {control_mode} (T,{expected_width}) actions with gripper in [-1,1]"
+        )
     tcp_pose = _finite_array(group, "obs/extra/tcp_pose", steps, 7)
     object_pose = _finite_array(group, "obs/extra/obj_pose", steps, 7)
     object_linear_velocity = _finite_array(
@@ -435,7 +439,7 @@ def derive_trajectory_objectcentric_v2(
             "object_linear_velocity": object_linear_velocity[:-1],
             "object_angular_velocity": object_angular_velocity[:-1],
             "eef_transition_local": _local_eef_transition(
-                tcp_pose, arrays["action"][:, 7]
+                tcp_pose, arrays["action"][:, -1]
             ),
             "robot_obj_contact_force": contact_force,
             "robot_obj_contact_force_norm": robot_obj_contact_force_norm[:-1],
@@ -450,6 +454,8 @@ def derive_trajectory_objectcentric_v2(
             "object_future_valid": future_valid,
         }
     )
+    if control_mode == "pd_ee_delta_pose":
+        arrays["panda_pd_ee_delta_pose_command"] = arrays["action"].copy()
     arrays.update(visibility_arrays)
     if occluder_active is not None:
         arrays["occluder_active"] = occluder_active
@@ -484,11 +490,18 @@ def derive_dataset(
         if contact_force_threshold < 0:
             raise ValueError("contact_force_threshold must be non-negative")
         task_spec = OBJECTCENTRIC_V2_TASK_SPECS[task]
+        control_mode = metadata.get("env_info", {}).get("env_kwargs", {}).get("control_mode")
+        if control_mode not in ("pd_joint_pos", "pd_ee_delta_pose"):
+            raise ValueError(
+                "objectcentric_v2 requires metadata control_mode pd_joint_pos or pd_ee_delta_pose, "
+                f"got {control_mode!r}"
+            )
         schema_version = task_spec["schema_version"]
         derive = lambda group: derive_trajectory_objectcentric_v2(
             group,
             camera,
             task=task,
+            control_mode=control_mode,
             future_horizons=future_horizons,
             contact_force_threshold=contact_force_threshold,
         )
@@ -510,6 +523,7 @@ def derive_dataset(
                 "source_h5": str(trajectory_path),
                 "source_trajectory": trajectory_id,
                 "camera": camera,
+                "source_control_mode": control_mode if schema == "objectcentric_v2" else None,
                 "quaternion_convention": "wxyz",
                 "num_steps": int(len(arrays["action"])),
                 "fields": {name: list(value.shape) for name, value in arrays.items()},
@@ -526,12 +540,20 @@ def derive_dataset(
                     f"{task_spec['phase_key']}_labels": task_spec["phase_labels"],
                     "future_horizons_steps": list(future_horizons),
                     "eef_transition_local": {
-                        "source": "observed tcp_pose[t:t+1] plus raw gripper action",
+                        "source": "observed tcp_pose[t:t+1] plus trajectory gripper action",
                         "frame": "current end-effector local frame",
                         "controller_command": False,
                     },
                 }
             )
+            if "panda_pd_ee_delta_pose_command" in arrays:
+                records[-1]["panda_pd_ee_delta_pose_command"] = {
+                    "source": "recorded ManiSkill trajectory action",
+                    "frame": "root translation and root-aligned body rotation",
+                    "normalized": True,
+                    "controller_command": True,
+                    "robot": "Panda",
+                }
             if "object_visible" in arrays:
                 records[-1]["segmentation_visibility"] = {
                     "object_id_source": "obs/extra/obj_segmentation_id",
@@ -567,6 +589,7 @@ def derive_dataset(
         summary.update(
             {
                 "physical_contact_source": "robot_obj_contact_force_norm",
+                "source_control_mode": control_mode,
                 "contact_force_threshold": contact_force_threshold,
                 "future_horizons_steps": list(future_horizons),
                 "segmentation_visibility": all(

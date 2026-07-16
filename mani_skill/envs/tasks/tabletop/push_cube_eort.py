@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import torch
+
 from mani_skill.envs.tasks.tabletop.push_cube import PushCubeEnv
 from mani_skill.envs.tasks.tabletop.eort_visual_variants import (
     EORTCameraRandomizationMixin,

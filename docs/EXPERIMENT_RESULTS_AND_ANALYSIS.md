@@ -182,3 +182,10 @@
 - 设置：未启动仿真或 GPU，使用现有 fixed-camera 256px pilot 的 raw HDF5 和 `derived_goal_segdepth`，渲染前两条 trajectory 共 143 action-aligned RGB 帧。
 - 结果：生成 `/remote-home/jinminghao/datasets/maniskill_eort_previews/push_cube_fixed_objectcentric_preview.mp4` 及 JSON summary。每帧叠加 derived object/goal bbox、mask centroid、可见性、当前 phase 与 force-contact，不显示 raw segmentation ID 或 simulator pose。
 - 分析：视频确认了预览工具读取的是同一 T 对齐 sidecar，且 object 小框、goal 大框、phase/contact 文本均可辨认。这是格式/时间对齐 QA，不是新数据、模型评测或 policy rollout；大规模目标机器仍须在每个 shard 采集后检查其对应 preview。
+
+### 2026-07-16 15:30:36 UTC — observed transition replay failure and controller target
+
+- 设置：从一条既有 successful PushCubeEORT 轨迹的首个 env state reset，以每步当前 EEF pose 将 `eef_transition_local` 转到 Panda 原生 normalized `pd_ee_delta_pose` frame，并执行全部 71 步；CPU PhysX、GPU 6 renderer，不训练模型。
+- 结果：最终 `success=false`；相对 source TCP 的 position RMSE 为 `0.08648 m`、最大 `0.11084 m`，quaternion `1-|dot|` 最大 `3.86e-5`，command 最大绝对值 `0.1144`。失败主要是位置跟踪/控制语义，不是姿态数值爆炸。
+- 对照：同一 joint demonstration 经 ManiSkill 官方 conversion 产生的 71-step `pd_ee_delta_pose` 轨迹最终 success=true。新 deriver 对其输出 `panda_pd_ee_delta_pose_command(71,7)`，逐元素等于 HDF5 action，同时继续输出非 command 的 `eef_transition_local(71,7)`。
+- 决策：正式 Panda policy 只使用官方 replay controller command；observed transition 留作 dynamics/auxiliary target。该结果不解决 Piper/真机 Franka 的坐标、幅值、频率、夹爪和 safety adapter。

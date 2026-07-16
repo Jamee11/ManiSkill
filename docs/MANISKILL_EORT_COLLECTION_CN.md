@@ -35,6 +35,7 @@ v2 不替换 v1，而是使用独立的 `PushCubeEORT-v1` 和输出目录。它�
 - `object_segdepth_centroid_world` / `goal_segdepth_centroid_world` `(T,3)`：各自 actor-mask 像素由毫米 depth 与 CV intrinsic/extrinsic 回投的可见表面 centroid；对应 `*_segdepth_valid(T,1)` 和相对于 simulator center/goal 的 `*_segdepth_centroid_error(T,1)` 只作 oracle tracker supervision 与 QA。它们不是 object/goal pose，也不进入当前 action policy。
 - `PushCubeEORTOccluded-v1` 额外导出 `occluder_active(T,1)` bool，表示 visual-only occluder 是否存在；它仅用于可见率 QA/split，manifest 标为 `policy_input=false`，绝不能作为 tracker 或 action policy 输入。
 - `eef_transition_local` `(T,7)`：由 action 前后 TCP pose 的实际变化导出 `[Δxyz_local, Δrotvec_local, gripper_open_fraction]`。它是 observed transition，manifest 明确标为 `controller_command=false`，并非 raw Panda joint command 的替代。
+- 当 source metadata 的 control mode 明确为 `pd_ee_delta_pose` 时，额外保存 `panda_pd_ee_delta_pose_command (T,7)`，逐元素等于 HDF5 action，并在 manifest 标为 Panda、normalized、root-translation/root-aligned-rotation controller command。该字段用于 Panda policy 主目标；它仍不是 Piper/真机 command。
 
 ```bash
 MANISKILL_EORT_PYTHON=/path/to/conda/env/bin/python \
@@ -77,13 +78,14 @@ Smoke 通过后，将 `NUM_TRAJ=10`。脚本拒绝覆盖已有 raw HDF5 或 `der
 使用 `scripts/eort/collect_large_objectcentric_v2.sh`。它不改变已经验证的格式，而是为每个独立 shard 串联：
 
 ```text
-raw HDF5 (T+1, RGB-D-segmentation-state) + seed_manifest
-  -> derived_goal_segdepth/*.npz + manifest.jsonl + summary.json
+raw pd_joint_pos HDF5 + seed_manifest
+  -> ManiSkill 官方 replay -> successful pd_ee_delta_pose HDF5
+  -> derived_controller_goal_segdepth/*.npz + manifest.jsonl + summary.json
   -> qa/*_preview.mp4 + JSON（bbox/质心/visibility/phase/contact overlay）
   -> LeRobot oracle / segdepth_proxy / track_corrupt 三个训练视图
 ```
 
-HDF5+NPZ 是可审计的 object-centric 真值来源；LeRobot 只是 DiT4DiT 当前 loader 的训练视图。tracker 读取前者的 RGB-D/标定，DiT4DiT action policy 读取后者的 RGB、state、7D observed local EEF transition。任何一边都不以 LeRobot 覆盖 raw 或 sidecar。
+HDF5+NPZ 是可审计的 object-centric 真值来源；LeRobot 只是 DiT4DiT 当前 loader 的训练视图。tracker 读取 controller-replay HDF5 的 RGB-D/标定，DiT4DiT action policy 主目标读取同一轨迹的 7D Panda controller command；observed local EEF transition 只保留为 dynamics/辅助目标。任何一边都不以 LeRobot 覆盖 raw 或 sidecar。
 
 先在目标机器上只检查计划；这不会创建目录、轨迹、视频或 LeRobot 数据：
 
@@ -94,6 +96,7 @@ MANISKILL_EORT_COLLECTION_ROOT=/remote-home/jinminghao/datasets/maniskill_eort_l
 MANISKILL_EORT_TASK=push_cube \
 MANISKILL_EORT_SPLIT=train \
 NUM_TRAJ=500 \
+MANISKILL_EORT_CONTROLLER_REPLAY_ENVS=1 \
 MANISKILL_EORT_CUDA_VISIBLE_DEVICES=4 \
 DRY_RUN=1 \
 bash scripts/eort/collect_large_objectcentric_v2.sh
@@ -117,7 +120,7 @@ bash scripts/eort/collect_large_objectcentric_v2.sh
 
 ### 训练根目录对应关系
 
-完成三个 variant 后，现有 DiT4DiT named mixture 无需改动。只覆盖其数据根：
+完成三个 variant 后，只覆盖 DiT4DiT 数据根，并选择 controller mixture：
 
 ```text
 .../maniskill_eort_large_v2/lerobot/train/oracle
@@ -125,9 +128,9 @@ bash scripts/eort/collect_large_objectcentric_v2.sh
 .../maniskill_eort_large_v2/lerobot/train/track_corrupt
 ```
 
-它们分别包含既有名称的 `maniskill_eort_{push,pick}_cube_256_{fixed,camera_rand,occluded}_..._lerobot` 数据集。DiT4DiT 仍使用 `maniskill_eort_*_256_*_splits_lerobot` mixture；不需要新 dataset loader 或修改 policy schema。val/test 根用相同 mixture 名称做数据/离线评估，不可与 train root 混用。
+它们分别包含既有名称的 `maniskill_eort_{push,pick}_cube_256_{fixed,camera_rand,occluded}_..._lerobot` 数据集。正式训练使用原 mixture 名追加 `_controller`，并设置 `MANISKILL_EORT_ACTION_SOURCE=panda_pd_ee_delta_pose`；旧 mixture 仅兼容 observed-transition pilot。val/test 根使用相同 controller mixture 做数据/离线评估，不可与 train root 混用。
 
-tracker 不读 LeRobot 视频，因为它需要 raw metric depth 与 camera calibration。将三条 train raw/sidecar 对传给既有 tracker launcher的 `SOURCES` 环境变量，并只用同一 physical trajectory 分组切分；不得把 train raw 与 val/test raw 拼在一起训练。
+tracker 不读 LeRobot 视频，因为它需要 raw metric depth 与 camera calibration。自动 launcher 选择 `*.pd_ee_delta_pose.physx_cpu.h5` 与 `derived_controller_goal_segdepth`；只按同一 physical trajectory 分组切分，不得把 train raw 与 val/test raw 拼在一起训练。
 
 ### 预览视频
 

@@ -14,6 +14,7 @@ VARIANTS=${MANISKILL_EORT_VARIANTS:-fixed,camera_rand,occluded}
 NUM_TRAJ=${NUM_TRAJ:-1000}
 SEED_BLOCK_SIZE=${MANISKILL_EORT_SEED_BLOCK_SIZE:-100000}
 PREVIEW_EPISODES=${MANISKILL_EORT_PREVIEW_EPISODES:-3}
+CONTROLLER_REPLAY_ENVS=${MANISKILL_EORT_CONTROLLER_REPLAY_ENVS:-1}
 FPS=${MANISKILL_EORT_FPS:-20}
 EXPORTS=${MANISKILL_EORT_EXPORTS:-oracle,segdepth_proxy,track_corrupt}
 TRACK_DELAY=${MANISKILL_EORT_TRACK_DELAY:-2}
@@ -50,8 +51,8 @@ variant_env() {
 }
 
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
-  printf '{"collection_root":"%s","task":"%s","split":"%s","variants":"%s","num_traj_per_variant":%s,"start_seed":%s,"seed_block_size":%s,"exports":"%s","gpu":"%s"}\n' \
-    "${COLLECTION_ROOT}" "${TASK}" "${SPLIT}" "${VARIANTS}" "${NUM_TRAJ}" "${START_SEED}" "${SEED_BLOCK_SIZE}" "${EXPORTS}" "${CUDA_VISIBLE_DEVICES:-unset}"
+  printf '{"collection_root":"%s","task":"%s","split":"%s","variants":"%s","num_traj_per_variant":%s,"start_seed":%s,"seed_block_size":%s,"exports":"%s","action_source":"panda_pd_ee_delta_pose","controller_replay_envs":%s,"gpu":"%s"}\n' \
+    "${COLLECTION_ROOT}" "${TASK}" "${SPLIT}" "${VARIANTS}" "${NUM_TRAJ}" "${START_SEED}" "${SEED_BLOCK_SIZE}" "${EXPORTS}" "${CONTROLLER_REPLAY_ENVS}" "${CUDA_VISIBLE_DEVICES:-unset}"
   exit 0
 fi
 if [[ ! -x "${PYTHON}" || ! -x "${DIT4DIT_PYTHON}" || ! -f "${DIT4DIT_ROOT}/examples/RLBench_EORT/scripts/convert_maniskill_eort_to_lerobot.py" ]]; then
@@ -70,9 +71,12 @@ for index in "${!variants[@]}"; do
   raw_root="${shard_root}/raw"
   trajectory_name="${TASK}_${SPLIT}_${variant}_seed${seed}_n${NUM_TRAJ}"
   trajectory_path="${raw_root}/${env_id}/motionplanning/${trajectory_name}.h5"
-  derived_dir="${shard_root}/derived_goal_segdepth"
+  source_seed_manifest="${trajectory_path%.h5}.seed_manifest.json"
+  controller_path="${trajectory_path%.h5}.state_dict+rgb+depth+segmentation.pd_ee_delta_pose.physx_cpu.h5"
+  controller_seed_manifest="${controller_path%.h5}.seed_manifest.json"
+  derived_dir="${shard_root}/derived_controller_goal_segdepth"
   preview_path="${shard_root}/qa/${trajectory_name}_preview.mp4"
-  if [[ -e "${trajectory_path}" || -e "${derived_dir}" || -e "${preview_path}" ]]; then
+  if [[ -e "${trajectory_path}" || -e "${source_seed_manifest}" || -e "${controller_path}" || -e "${controller_seed_manifest}" || -e "${derived_dir}" || -e "${preview_path}" ]]; then
     echo "Refusing to overwrite shard output under ${shard_root}" >&2
     exit 1
   fi
@@ -82,10 +86,21 @@ for index in "${!variants[@]}"; do
     --start-seed "${seed}" --save-seed-manifest \
     --obs-mode state_dict+rgb+depth+segmentation --sim-backend cpu \
     --record-dir "${raw_root}" --traj-name "${trajectory_name}"
+  "${PYTHON}" -m mani_skill.trajectory.replay_trajectory \
+    --traj-path "${trajectory_path}" --use-first-env-state \
+    --target-control-mode pd_ee_delta_pose --obs-mode state_dict+rgb+depth+segmentation \
+    --save-traj --num-envs "${CONTROLLER_REPLAY_ENVS}" --sim-backend physx_cpu
+  [[ -f "${controller_path}" ]] || { echo "Missing controller replay output: ${controller_path}" >&2; exit 1; }
+  controller_count=$("${PYTHON}" -c 'import h5py,sys; f=h5py.File(sys.argv[1]); print(len(f)); f.close()' "${controller_path}")
+  if (( controller_count != NUM_TRAJ )); then
+    echo "Controller replay kept ${controller_count}/${NUM_TRAJ} trajectories; refusing partial shard" >&2
+    exit 1
+  fi
+  cp "${source_seed_manifest}" "${controller_seed_manifest}"
   "${PYTHON}" scripts/eort/derive_push_cube_eort.py \
-    --traj-path "${trajectory_path}" --output-dir "${derived_dir}" --schema objectcentric_v2
+    --traj-path "${controller_path}" --output-dir "${derived_dir}" --schema objectcentric_v2
   "${PYTHON}" scripts/eort/render_objectcentric_preview.py \
-    --trajectory-path "${trajectory_path}" --derived-dir "${derived_dir}" \
+    --trajectory-path "${controller_path}" --derived-dir "${derived_dir}" \
     --output "${preview_path}" --max-episodes "${PREVIEW_EPISODES}" --fps "${FPS}"
   for export_name in "${exports[@]}"; do
     case "${export_name}" in
@@ -107,7 +122,8 @@ for index in "${!variants[@]}"; do
       *) echo "Unknown MANISKILL_EORT_EXPORTS item: ${export_name}" >&2; exit 2 ;;
     esac
     "${DIT4DIT_PYTHON}" "${DIT4DIT_ROOT}/examples/RLBench_EORT/scripts/convert_maniskill_eort_to_lerobot.py" \
-      --trajectory-path "${trajectory_path}" --derived-dir "${derived_dir}" \
-      --output-root "${output_root}" --dataset-name "${dataset_name}" --fps "${FPS}" "${export_args[@]}"
+      --trajectory-path "${controller_path}" --derived-dir "${derived_dir}" \
+      --output-root "${output_root}" --dataset-name "${dataset_name}" --fps "${FPS}" \
+      --action-source panda_pd_ee_delta_pose "${export_args[@]}"
   done
 done
