@@ -1,5 +1,12 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 16:42:08 UTC - PickCube three-variant production smoke
+
+- Setup: Reused the unchanged production wrapper on GPU 7 for one fixed, camera-randomized, and visually occluded PickCube trajectory with disjoint seeds `0/100000/200000`, official Panda controller replay, all three export views, and 256px previews. Output: `/remote-home/jinminghao/datasets/maniskill_eort_pick_large_v2_smoke_20260716` (257 MB).
+- Result: All source and replay trajectories succeeded with `74/81/72` controller steps. HDF5 actions exactly matched sidecar and all nine Parquet action arrays. Raw grasped-frame counts were `37/41/21`; derived phase counts were `[36,1,33,4]`, `[39,1,34,7]`, and `[50,1,18,3]`, and phase 2 exactly matched raw grasped-and-not-success rows. All continuous fields were finite. The three controller mixtures loaded `[74,81,72]` and emitted state `(1,64)`, action `(8,7)`, image `(3,224,224)` with status 0.
+- Visibility finding: Fixed and camera-randomized object/goal were visible throughout. In the occluded seed the object remained visible 72/72, but the elevated goal was invisible 0/72; therefore every segdepth relational condition in that component is invalid/zero. This is a valid hard occlusion sample, not a deployable signal, and must be reported separately rather than hidden in aggregate object visibility.
+- Interpretation: The earlier PickCube runtime-smoke gap is closed. The one-seed-per-variant result is not sufficient for a large PickCube collection decision, tracker generalization, grasp estimation, or sim2real claims.
+
 ## 2026-07-16 16:25:33 UTC - Three-variant large-collection harness smoke
 
 - Setup: Ran `scripts/eort/collect_large_objectcentric_v2.sh` on GPU 7 with CPU PhysX, one successful PushCube trajectory per fixed/camera-random/occluded variant, start seeds `0/100000/200000`, official replay to `pd_ee_delta_pose`, all three export views, and 256px QA previews. Output: `/remote-home/jinminghao/datasets/maniskill_eort_large_v2_smoke_20260716` (229 MB).

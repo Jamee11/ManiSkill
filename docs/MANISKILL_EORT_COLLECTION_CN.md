@@ -77,7 +77,7 @@ Smoke 通过后，将 `NUM_TRAJ=10`。脚本拒绝覆盖已有 raw HDF5 或 `der
 
 使用 `scripts/eort/collect_large_objectcentric_v2.sh`。它不改变已经验证的格式，而是为每个独立 shard 串联：
 
-该正式 wrapper 已在 GPU 7 以 fixed/camera-random/occluded 各 1 条完成端到端 smoke，输出位于 `/remote-home/jinminghao/datasets/maniskill_eort_large_v2_smoke_20260716`。这只证明链路可运行；正式采集仍按新的 collection root 执行，不能复用或覆盖该 smoke 目录。
+该正式 wrapper 已在 GPU 7 对 PushCube 和 PickCube 的 fixed/camera-random/occluded 各 1 条完成端到端 smoke，输出分别位于 `/remote-home/jinminghao/datasets/maniskill_eort_large_v2_smoke_20260716` 与 `/remote-home/jinminghao/datasets/maniskill_eort_pick_large_v2_smoke_20260716`。这只证明链路可运行；正式采集仍按新的 collection root 执行，不能复用或覆盖 smoke 目录。Pick occluded smoke 的 goal 为 0/72 可见，说明批量 QA 必须同时报告 object、goal 与 relational-valid 比例。
 
 ```text
 raw pd_joint_pos HDF5 + seed_manifest
