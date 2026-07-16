@@ -597,6 +597,28 @@ def derive_dataset(
                 ),
             }
         )
+        if summary["segmentation_visibility"]:
+            object_visible = np.concatenate([arrays["object_visible"][:, 0] for _, arrays in outputs])
+            goal_visible = np.concatenate([arrays["goal_visible"][:, 0] for _, arrays in outputs])
+            object_depth_valid = np.concatenate([arrays["object_segdepth_valid"][:, 0] for _, arrays in outputs])
+            goal_depth_valid = np.concatenate([arrays["goal_segdepth_valid"][:, 0] for _, arrays in outputs])
+            visibility_qa = {
+                "total_steps": summary["steps"],
+                "object_visible_steps": int(object_visible.sum()),
+                "goal_visible_steps": int(goal_visible.sum()),
+                "relational_visible_steps": int((object_visible & goal_visible).sum()),
+                "relational_segdepth_valid_steps": int((object_depth_valid & goal_depth_valid).sum()),
+            }
+            for role in ("object", "goal"):
+                pixels = np.concatenate([arrays[f"{role}_mask_pixels"][:, 0] for _, arrays in outputs])
+                visibility_qa[f"{role}_mask_pixels_min_median_max"] = [
+                    int(pixels.min()), float(np.median(pixels)), int(pixels.max())
+                ]
+            if all("occluder_active" in arrays for _, arrays in outputs):
+                visibility_qa["occluder_active_steps"] = int(
+                    sum(arrays["occluder_active"].sum() for _, arrays in outputs)
+                )
+            summary["visibility_qa"] = visibility_qa
     (output_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

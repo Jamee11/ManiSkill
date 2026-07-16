@@ -1,5 +1,12 @@
 # Modification Log
 
+## 2026-07-16 16:42:08 UTC - Persist shard-level relational visibility QA
+
+- Reason: The PickCube occluded smoke kept the object visible but hid the goal for every frame, making the deployable object-to-goal proxy invalid while object-only visibility looked healthy. The production wrapper previously required manual NPZ inspection to detect this failure mode.
+- Change: Reused the existing v2 deriver `summary.json` and existing sidecar arrays to add total, object-visible, goal-visible, jointly visible, jointly depth-valid, object/goal mask-pixel min/median/max, and optional occluder-active step counts. No new script, schema field, dependency, or policy input was added.
+- Scope: Additive QA metadata only. Raw HDF5, per-trajectory NPZ, controller action, physics, environment, LeRobot fields, model, and training behavior are unchanged.
+- Verification: The existing deriver suite passed 5/5 with exact synthetic QA assertions. Fresh derivation of real occluded controller HDF5 reported Push relational-visible/depth-valid `66/66` and Pick `0/72`, matching direct NPZ/Parquet inspection. No training was launched.
+
 ## 2026-07-16 15:58:07 UTC - Enable the isolated environment for DiT4DiT websocket evaluation
 
 - Reason: The Panda closed-loop evaluator must run inside `maniskill-eort-v1`, while its DiT4DiT policy client uses the existing websocket/msgpack protocol. Those two runtime packages were absent from the isolated simulator environment.

@@ -133,6 +133,19 @@ class PushCubeEORTTest(unittest.TestCase):
             )
             self.assertEqual(summary["schema_version"], module.OBJECTCENTRIC_V2_SCHEMA_VERSION)
             self.assertEqual(summary["future_horizons_steps"], [1, 4, 8])
+            self.assertEqual(
+                summary["visibility_qa"],
+                {
+                    "total_steps": 3,
+                    "object_visible_steps": 2,
+                    "goal_visible_steps": 3,
+                    "relational_visible_steps": 2,
+                    "relational_segdepth_valid_steps": 2,
+                    "object_mask_pixels_min_median_max": [0, 1.0, 2],
+                    "goal_mask_pixels_min_median_max": [1, 1.0, 2],
+                    "occluder_active_steps": 2,
+                },
+            )
             manifest = json.loads((root / "derived" / "manifest.jsonl").read_text())
             self.assertEqual(manifest["physical_contact"]["source"], "robot_obj_contact_force_norm")
             self.assertEqual(manifest["push_interaction_phase_labels"]["2"], "measured_contact_while_object_moves")
