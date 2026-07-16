@@ -4,7 +4,7 @@
 
 - Reason: Fixed 4 cm/0.3-friction cubes cannot test whether object-centric dynamics generalize across basic physical variation. Scene-load geometry is absent from ordinary env state, so the split must reconfigure from the recorded episode seed and persist its actual parameters.
 - Change: Added optional `PushCubeEORTGeometryRand-v1`, limited to one environment, with `reconfiguration_freq=1`, half-size `[0.017,0.023]m` and shared static/dynamic friction `[0.15,0.60]`. All Push/Pick EORT raw observations now persist friction; sidecars and production audit require explicit `(1,2)` provenance. The existing three variants and current 17D DiT4DiT condition are unchanged.
-- Verification before runtime smoke: focused derivation/audit tests and syntax checks pass. Real source→controller replay and parameter equality remain pending and must be recorded before using this split for training.
+- Verification: Focused derivation/audit tests and syntax checks passed. GPU 7 collected three seeds; source motion planning and controller replay were 3/3 successful over 205 steps. Source/controller extent and friction arrays matched exactly per trajectory, the production audit passed, and DiT4DiT loaded the metric output as one 205-step component with `(1,64)/(8,7)/(3,224,224)` sample shapes. No training was started.
 
 ## 2026-07-16 19:18 UTC - Persist object extent before domain randomization
 

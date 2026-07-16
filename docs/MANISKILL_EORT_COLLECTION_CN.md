@@ -59,6 +59,8 @@ MANISKILL_EORT_CONTROLLER_REPLAY_ENVS=1 \
 bash scripts/eort/collect_large_objectcentric_v2.sh
 ```
 
+GPU 7 的三 seed smoke 已通过上述门槛：seeds 3100/3101/3102 的完整边长分别为 `4.542/3.575/4.211 cm`，摩擦为 `0.178/0.216/0.387`；source 和 controller HDF5 参数逐元素相等，motion planning 与 controller replay 均为 3/3 success。输出为 `/remote-home/jinminghao/datasets/maniskill_eort_geometry_rand_smoke_20260716`。这只证明 seeded reconstruction，不代表范围设计已匹配真机分布。
+
 v2 的首条真实 HDF5 已确认物理字段与 `obj_segmentation_id`/`goal_segmentation_id` 均为 `T+1`，而 derived labels 是 `T`；通过前不得将 v2 接入训练。批量阶段仍须检查 visibility fraction 分布，不能仅凭一条全可见轨迹声明感知鲁棒。
 
 2026-07-16 的新字段 smoke 位于 `/remote-home/jinminghao/datasets/maniskill_eort_extent_smoke_20260716_retry`：GPU 7 上 Push fixed 1/1 成功、71 actions/72 observations，raw `obj_extent=(72,3)`、sidecar `object_extent=(1,3)`，均为约 `0.04m`，manifest source 为显式 raw 字段；metric oracle/proxy/corrupt 三个 LeRobot 视图和完整 collection audit 均通过。该 81 MB 输出只验证链路，不是训练数据规模或尺寸泛化证据。

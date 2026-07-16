@@ -1,5 +1,12 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 19:41 UTC - Seeded geometry/friction source-to-controller smoke
+
+- Setup: GPU 7, `PushCubeEORTGeometryRand-v1`, seeds 3100/3101/3102, metric action export, one isolated `geometry_rand` shard. Output: `/remote-home/jinminghao/datasets/maniskill_eort_geometry_rand_smoke_20260716` (232 MB).
+- Result: source motion planning and converted Panda controller replay were 3/3 successful with trajectory lengths 70/65/70. Full cube side lengths were `4.542/3.575/4.211 cm`; static/dynamic friction values were `0.178/0.216/0.387`. Source and controller HDF5 parameter arrays matched exactly for all frames and trajectories.
+- QA: 205/205 object and goal frames were visible and segdepth-valid; phase counts were `125/0/57/23`. Production audit passed with three unique seeds and source commit `d6ff886`. The isolated metric DiT4DiT mixture loaded one 205-step component and returned state `(1,64)`, action `(8,7)`, image `(3,224,224)`.
+- Boundary: This validates deterministic asset reconstruction and data plumbing only. Three successful seeds do not estimate large-run success, optimal randomization range, or sim2real gain; mass, appearance, lighting and sensor noise remain outside this split.
+
 ## 2026-07-16 19:18 UTC - Domain-randomization prerequisite audit
 
 - Current Push/Pick already randomize object/goal poses; EORT additionally covers camera pose and visual occlusion. It does not yet vary cube geometry, mass/friction, appearance, lighting, sensor noise or robot calibration.
