@@ -1,5 +1,11 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 19:10 UTC - Franka/Piper deployment-interface audit
+
+- Local evidence: StarVLA documents the desired Franka 7D delta action but leaves `env.step(action)` as a user implementation. UniVLA contains a working-style ROS path, but it is coupled to `/mk1000` joint state, a project-specific FK/IK stack, front-camera hand-eye calibration and gripper topic. No Piper SDK or Piper control node was found in the selected project workspaces.
+- Result: Added only an offline calibration/limit audit around the already verified EORT metric action. Synthetic checks pass for axis rotation, native gripper mapping, and violation counting; this is not a hardware experiment or proof of safe execution.
+- Next gate: On the target robot, supply measured calibration and controller limits, implement the actual SDK/ROS adapter in the robot-owning repository, then run workspace/collision/latency/estop checks and a low-speed no-object replay before any manipulation trial.
+
 ## 2026-07-16 19:05 UTC - Reproducible external collection runtime
 
 - The production wrapper now records its actual interpreter/package versions only after a shard completes, and the training audit rejects incomplete or mixed runtimes. This reuses stdlib package metadata and adds no dependency or model/data field.

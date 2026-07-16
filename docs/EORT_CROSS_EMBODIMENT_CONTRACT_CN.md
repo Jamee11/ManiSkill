@@ -1,7 +1,7 @@
 # EORT 跨机器人数据与动作契约
 
-状态：Panda→metric task action 数据/导出/训练入口已打通；Franka/Piper 部署适配器尚未实现。
-最后更新：2026-07-16 18:15:00 UTC。
+状态：Panda→metric task action 数据/导出/训练入口已打通；已有离线标定/限幅预检，但 Franka/Piper 硬件执行适配器尚未实现。
+最后更新：2026-07-16 19:10:00 UTC。
 
 ## 1. 已验证的事实与边界
 
@@ -78,6 +78,21 @@ arm_present                   : (A,) bool
 已对一条真实 `pd_joint_pos(T,8)` PushCubeEORT 轨迹使用 ManiSkill 官方转换器，重放为 `pd_ee_delta_pose(T,7)`，转换轨迹的最终 success=True。该 HDF5 action 是 **Panda 的归一化 root-translation/root-aligned-rotation controller command**，与 `eef_transition_local` 的 observed local motion 有意分离。它证明官方 IK 转换可在该 Panda task 上回放，但不满足本契约的 local `canonical_action_cmd`：Piper 控制器、真实夹爪标定、task-frame transform 和跨机器人 replay 尚未验证。
 
 控制器源码进一步确认该 normalized command 可逆解码为 `metric_task_delta_pose_command(T,7)`：平移米、task/world 轴 rotation-vector 弧度和 `[0,1]` gripper open fraction。当前 Push/Pick 的 Panda root orientation 为 identity，因此 root-aligned delta 与 task/world 轴一致。固定 Push 71 步反编码最大误差为 `1.49e-8`，反编码 action 的 GPU7 replay 仍为 1/1 success。该字段已消除 Panda 的 normalized scale 与 XYZ-Euler 表示，但还不是“任意机器人直接执行”：Franka/Piper 仍需各自的 task-from-base 旋转、控制频率、每步速度/加速度限制、夹爪标定与 safety replay。
+
+### 真机接入前的离线预检
+
+`scripts/eort/audit_metric_action_calibration.py` 读取 EORT sidecar 的 `metric_task_delta_pose_command(T,7)` 和一份机器人实测标定 JSON，只做 task-axis→robot-base-axis 旋转、逐步平移/旋转限幅与夹爪 `[0,1]`→原生范围映射审计。它不导入机器人 SDK、不发送命令，并始终写明 `hardware_execution_validated=false`。
+
+标定 JSON 必须显式提供 `schema_version=eort_hardware_calibration_v1`、`robot_id`、`arm_id`、`command_hz`、`robot_base_from_task_rotation(3,3)`、每步平移/旋转上限和原生夹爪开/闭值。仓库不提供 Franka/Piper 的猜测默认值；这些值必须来自目标工作台标定和实际控制接口。使用方式：
+
+```bash
+python scripts/eort/audit_metric_action_calibration.py \
+  --calibration /path/to/measured_calibration.json \
+  --actions /path/to/derived_controller/traj_0.npz \
+  --report /new/path/calibration_audit.json
+```
+
+当前本地审计只找到 StarVLA 的 7D Franka 模型输出示例和 UniVLA 的定制 ROS/相机坐标执行节点；前者把 `env.step()` 留给用户实现，后者绑定 `/mk1000`、特定手眼标定与 IK，均不能作为本项目可直接复用的通用安全驱动。本地未找到 Piper SDK/控制节点。因此本工具只封闭可验证的坐标/数值边界，不能替代 workspace、碰撞、时延、急停、低层插值和真机低速 replay。
 
 **因果边界：** `future_object_delta` 是时刻 `t` 之后的真值，不能作为 `t` 的可部署 action-policy 输入；它只能作为 object dynamics 的辅助预测目标。首个 GT oracle action gate 只可使用当前时刻可得的 pose、relative geometry、velocity、visibility 与当前接触状态。若实验额外喂入 future GT，必须显式标为不可部署的预测上界，不能与真实 sim2real 条件比较。
 

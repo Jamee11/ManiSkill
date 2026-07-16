@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-16 19:10 UTC - Add an offline real-robot calibration gate
+
+- Reason: The verified Panda metric action still lacked an auditable boundary before a Franka/Piper driver. Local source inspection found only a StarVLA interface placeholder and a UniVLA deployment node tied to a specific ROS/IK/eye-hand setup; no reusable Piper SDK was present.
+- Change: Added a read-only CLI that requires measured robot calibration, rotates task-axis metric commands into robot-base axes, maps normalized gripper openness to declared native values, and rejects per-step translation/rotation or gripper-range violations. It imports no robot SDK, sends no command, refuses to overwrite a report, and always reports that hardware execution is unvalidated.
+- Verification: Three focused unit tests cover a valid rotated command, all three violation classes, and rejection of an invalid calibration rotation. No robot, simulation, data collection, or training was started.
+
 ## 2026-07-16 19:05 UTC - Persist and audit the collection runtime
 
 - Reason: Controller metadata recorded the source commit and environment configuration but not the target machine's Python/Torch/SAPIEN versions, leaving an external collection impossible to reproduce exactly.
