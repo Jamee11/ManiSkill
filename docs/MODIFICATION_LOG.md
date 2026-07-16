@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-16 17:45:00 UTC — 可逆 metric task action 契约
+
+- 原因：现有 policy target 是 Panda normalized root-frame command，无法直接用于 Franka/Piper；observed EEF transition 又已被真实 replay 证明不可执行。
+- 精确变更：新增独立 `action_contract.py`，按 ManiSkill Panda 控制器真实 scale/frame 将 normalized action 可逆转换为 `delta_xyz_m + delta_rotvec_rad + gripper_open_fraction`，并支持由标定旋转变换 task axes。v2 sidecar/manifest 在保留原 Panda command 的同时新增 `metric_task_delta_pose_command`。未改变物理、原 action、环境、future/phase 标签或已有训练默认值。
+- 验证：六项 EORT 测试通过；Push/Pick 六条 smoke 的 rotation norm 均小于 1。固定 Push 71 步反编码最大误差 `1.49e-8`，GPU7 真实 replay 1/1 final success。未启动训练，未宣称真机适配完成。
+
 ## 2026-07-16 16:42:08 UTC - Persist shard-level relational visibility QA
 
 - Reason: The PickCube occluded smoke kept the object visible but hid the goal for every frame, making the deployable object-to-goal proxy invalid while object-only visibility looked healthy. The production wrapper previously required manual NPZ inspection to detect this failure mode.

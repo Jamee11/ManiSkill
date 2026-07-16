@@ -7,6 +7,12 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+from scripts.eort.action_contract import (
+    metric_task_to_panda_normalized,
+    panda_normalized_to_metric_task,
+    rotate_metric_task_command,
+)
+
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "eort" / "derive_push_cube_eort.py"
 
@@ -201,6 +207,8 @@ class PushCubeEORTTest(unittest.TestCase):
                 self.assertEqual(labels["pick_interaction_phase"].tolist(), [[0], [2], [3]])
 
             controller_actions = np.zeros((3, 7), dtype=np.float32)
+            controller_actions[:, :3] = [[0.2, -0.3, 0.4], [0, 0, 0], [-0.5, 0.1, 0.2]]
+            controller_actions[:, 3:6] = [[0.1, 0.2, -0.3], [0, 0, 0], [0.4, -0.2, 0.1]]
             controller_actions[:, -1] = [-1, 0, 1]
             with h5py.File(trajectory, "r+") as file:
                 del file["traj_0/actions"]
@@ -216,10 +224,23 @@ class PushCubeEORTTest(unittest.TestCase):
                 (root / "derived_controller" / "manifest.jsonl").read_text()
             )
             self.assertTrue(controller_manifest["panda_pd_ee_delta_pose_command"]["controller_command"])
+            self.assertTrue(controller_manifest["metric_task_delta_pose_command"]["controller_command"])
             with np.load(root / "derived_controller" / "traj_0.npz") as labels:
                 np.testing.assert_array_equal(
                     labels["panda_pd_ee_delta_pose_command"], controller_actions
                 )
+                metric = labels["metric_task_delta_pose_command"]
+                np.testing.assert_allclose(metric[:, :3], controller_actions[:, :3] * 0.1)
+                np.testing.assert_allclose(metric[:, 6], [0.0, 0.5, 1.0])
+                np.testing.assert_allclose(metric_task_to_panda_normalized(metric), controller_actions, atol=1e-6)
+
+    def test_metric_task_action_rotation_is_calibration_reversible(self):
+        action = np.array([[0.2, -0.3, 0.4, 0.1, 0.2, -0.3, 0.0]], dtype=np.float32)
+        metric = panda_normalized_to_metric_task(action)
+        rotation = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float32)
+        rotated = rotate_metric_task_command(metric, rotation)
+        recovered = rotate_metric_task_command(rotated, rotation.T)
+        np.testing.assert_allclose(recovered, metric, atol=1e-7)
 
     def test_local_eef_transition_uses_current_eef_frame(self):
         module = load_module()

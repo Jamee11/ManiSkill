@@ -37,6 +37,7 @@ v2 不替换 v1，而是使用独立的 `PushCubeEORT-v1` 和输出目录。它�
 - 每个 v2 shard 的 `summary.json.visibility_qa` 自动汇总 object/goal/joint-visible、joint segdepth-valid、两类 mask pixel 的 min/median/max，以及存在时的 occluder-active 步数；大规模采集无需再手工扫描 NPZ 才能发现“object 可见但 goal 全不可见”的无效关系样本。
 - `eef_transition_local` `(T,7)`：由 action 前后 TCP pose 的实际变化导出 `[Δxyz_local, Δrotvec_local, gripper_open_fraction]`。它是 observed transition，manifest 明确标为 `controller_command=false`，并非 raw Panda joint command 的替代。
 - 当 source metadata 的 control mode 明确为 `pd_ee_delta_pose` 时，额外保存 `panda_pd_ee_delta_pose_command (T,7)`，逐元素等于 HDF5 action，并在 manifest 标为 Panda、normalized、root-translation/root-aligned-rotation controller command。该字段用于 Panda policy 主目标；它仍不是 Piper/真机 command。
+- 同时保存可逆的 `metric_task_delta_pose_command (T,7)`：`Δxyz` 为米，旋转为 task/world 轴 rotvec（弧度），夹爪为 `[0,1]` open fraction。当前 Push/Pick Panda root 只有平移、orientation identity，因此 root 与 task/world 轴一致；它由 normalized controller action 的真实 `0.1m/-0.1rad` 缩放及 XYZ-Euler→rotvec 精确解码。它消除 Panda 数值归一化，但真机仍需 task-from-base 标定、频率/限幅和 gripper adapter。
 
 ```bash
 MANISKILL_EORT_PYTHON=/path/to/conda/env/bin/python \

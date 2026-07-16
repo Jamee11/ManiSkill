@@ -1,5 +1,12 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 17:45:00 UTC - Reversible metric task action and Panda replay
+
+- Source audit: Panda `pd_ee_delta_pose` maps normalized translation to `[-0.1,0.1] m`, maps the normalized rotation vector through unit-ball clipping then multiplies by `-0.1 rad` as root-aligned XYZ Euler, and maps gripper to the physical `[-0.01,0.04] m` target. All six Push/Pick production-smoke trajectories had rotation norm below one (`max=0.9423`), so no source command was clipped.
+- Implementation: Added a retained metric command `[delta_xyz_m, delta_rotvec_rad, gripper_open_fraction]` plus exact Panda encode/decode and calibration-axis rotation. Raw normalized Panda action and non-command observed transition remain separate.
+- Verification: Six EORT tests passed. On the real fixed Push trajectory, all 71 metric commands encoded back with maximum absolute error `1.49e-8`; the rewritten HDF5 replayed on GPU7 with 1/1 final success. Output: `/remote-home/jinminghao/datasets/maniskill_eort_metric_action_smoke_20260716`.
+- Boundary: This validates simulator Panda conversion only. It does not validate a Franka/Piper driver, task calibration, control frequency, gripper direction/range, latency, collision limits, or real-world safety.
+
 ## 2026-07-16 16:42:08 UTC - PickCube three-variant production smoke
 
 - Setup: Reused the unchanged production wrapper on GPU 7 for one fixed, camera-randomized, and visually occluded PickCube trajectory with disjoint seeds `0/100000/200000`, official Panda controller replay, all three export views, and 256px previews. Output: `/remote-home/jinminghao/datasets/maniskill_eort_pick_large_v2_smoke_20260716` (257 MB).

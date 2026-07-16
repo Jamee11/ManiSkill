@@ -77,6 +77,8 @@ arm_present                   : (A,) bool
 
 已对一条真实 `pd_joint_pos(T,8)` PushCubeEORT 轨迹使用 ManiSkill 官方转换器，重放为 `pd_ee_delta_pose(T,7)`，转换轨迹的最终 success=True。该 HDF5 action 是 **Panda 的归一化 root-translation/root-aligned-rotation controller command**，与 `eef_transition_local` 的 observed local motion 有意分离。它证明官方 IK 转换可在该 Panda task 上回放，但不满足本契约的 local `canonical_action_cmd`：Piper 控制器、真实夹爪标定、task-frame transform 和跨机器人 replay 尚未验证。
 
+控制器源码进一步确认该 normalized command 可逆解码为 `metric_task_delta_pose_command(T,7)`：平移米、task/world 轴 rotation-vector 弧度和 `[0,1]` gripper open fraction。当前 Push/Pick 的 Panda root orientation 为 identity，因此 root-aligned delta 与 task/world 轴一致。固定 Push 71 步反编码最大误差为 `1.49e-8`，反编码 action 的 GPU7 replay 仍为 1/1 success。该字段已消除 Panda 的 normalized scale 与 XYZ-Euler 表示，但还不是“任意机器人直接执行”：Franka/Piper 仍需各自的 task-from-base 旋转、控制频率、每步速度/加速度限制、夹爪标定与 safety replay。
+
 **因果边界：** `future_object_delta` 是时刻 `t` 之后的真值，不能作为 `t` 的可部署 action-policy 输入；它只能作为 object dynamics 的辅助预测目标。首个 GT oracle action gate 只可使用当前时刻可得的 pose、relative geometry、velocity、visibility 与当前接触状态。若实验额外喂入 future GT，必须显式标为不可部署的预测上界，不能与真实 sim2real 条件比较。
 
 ## 4. 模型路线

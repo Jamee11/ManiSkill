@@ -11,6 +11,11 @@ from typing import Any
 import h5py
 import numpy as np
 
+try:
+    from scripts.eort.action_contract import panda_normalized_to_metric_task
+except ModuleNotFoundError:  # Direct `python scripts/eort/derive_push_cube_eort.py` entrypoint.
+    from action_contract import panda_normalized_to_metric_task
+
 
 SCHEMA_VERSION = "maniskill_push_cube_eort_oracle_v1"
 OBJECTCENTRIC_V2_SCHEMA_VERSION = "maniskill_push_cube_objectcentric_oracle_v2"
@@ -456,6 +461,7 @@ def derive_trajectory_objectcentric_v2(
     )
     if control_mode == "pd_ee_delta_pose":
         arrays["panda_pd_ee_delta_pose_command"] = arrays["action"].copy()
+        arrays["metric_task_delta_pose_command"] = panda_normalized_to_metric_task(arrays["action"])
     arrays.update(visibility_arrays)
     if occluder_active is not None:
         arrays["occluder_active"] = occluder_active
@@ -553,6 +559,14 @@ def derive_dataset(
                     "normalized": True,
                     "controller_command": True,
                     "robot": "Panda",
+                }
+                records[-1]["metric_task_delta_pose_command"] = {
+                    "source": "exact decode of recorded Panda pd_ee_delta_pose action",
+                    "layout": "delta_xyz_m + delta_rotvec_rad + gripper_open_fraction",
+                    "frame": "task/world axes; current PushCube/PickCube Panda root orientation is identity",
+                    "normalized": False,
+                    "controller_command": True,
+                    "robot_specific_scaling": False,
                 }
             if "object_visible" in arrays:
                 records[-1]["segmentation_visibility"] = {
