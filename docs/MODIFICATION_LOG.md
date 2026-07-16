@@ -1,5 +1,12 @@
 # Modification Log
 
+## 2026-07-16 15:58:07 UTC - Enable the isolated environment for DiT4DiT websocket evaluation
+
+- Reason: The Panda closed-loop evaluator must run inside `maniskill-eort-v1`, while its DiT4DiT policy client uses the existing websocket/msgpack protocol. Those two runtime packages were absent from the isolated simulator environment.
+- Change: Installed and verified `websockets==16.0` and `msgpack==1.1.2` in `maniskill-eort-v1`; recorded the versions in `docs/思考与隐患.md`.
+- Scope: Environment dependencies only. No ManiSkill task, physics, rendering, collection schema, controller, or source code changed.
+- Verification: Both packages and `websockets.sync.client` import successfully. The same environment completed the new 63-step PushCube closed-loop replay smoke with 256px video.
+
 ## 2026-07-16 15:30:36 UTC — Build replay-verified Panda controller-command data path
 
 - 原因：真实 71-step replay 证明 `eef_transition_local` 经换帧后仍无法复现成功轨迹，TCP 位置 RMSE 8.65 cm、最大 11.08 cm；它不能继续作为正式 action-policy 主目标。

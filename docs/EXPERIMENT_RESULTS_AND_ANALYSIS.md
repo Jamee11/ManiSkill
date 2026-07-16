@@ -1,5 +1,12 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 15:58:07 UTC - DiT4DiT Panda evaluator replay smoke
+
+- Setup: GPU 7 renderer, CPU PhysX, `PushCubeEORT-v1`, first recorded state, and exact replay-generated `pd_ee_delta_pose` actions. The DiT4DiT evaluator constructed the current oracle object condition and applied its learned-action safety path; no policy/tracker training was run.
+- Result: Success at step 63, zero clipped actions, 63/63 valid condition steps, and a 64-frame 256x256 MP4. Output is `/remote-home/jinminghao/datasets/dit4dit_maniskill_closed_loop_oracle_smoke_20260716`.
+- Interpretation: Simulator reset, current observation extraction, controller command, safety, video, and result logging are connected. This is replay verification, not evidence of learned-policy quality or sim2real transfer.
+- Next: Train matched Panda-controller `robot_only` and `oracle` policies externally, then evaluate on identical held-out seeds before scheduling the learned-tracker policy.
+
 ## ManiSkill PushCube EORT pilot
 
 状态：环境、schema smoke、v2 端到端轨迹与 object/goal 可见率 QA 已通过；尚未进行批量采集或训练。
