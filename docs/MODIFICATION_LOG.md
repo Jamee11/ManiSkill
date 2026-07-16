@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-16 20:00 UTC - Add an isolated future-object supervision export
+
+- Reason: h=1/4/8 future object labels existed only in sidecars. DiT4DiT needs an explicit auxiliary-target view, while default policy datasets must continue to exclude future truth.
+- Change: Added `MANISKILL_EORT_INCLUDE_FUTURE_TARGETS=1`, valid only with metric actions. It passes the opt-in exporter flag and writes collision-free `*_metric_dynamics` roots. The read-only collection audit now verifies the future-target manifest bit. Default collection behavior is unchanged.
+- Verification: Shell syntax/dry-run and audit unittest passed. A real three-variant Push dynamics view passed export, loader and audit with 3 episodes/202 steps/3 unique seeds. No training was launched.
+
 ## 2026-07-16 17:45:00 UTC — 可逆 metric task action 契约
 
 - 原因：现有 policy target 是 Panda normalized root-frame command，无法直接用于 Franka/Piper；observed EEF transition 又已被真实 replay 证明不可执行。

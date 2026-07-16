@@ -1,5 +1,11 @@
 # Experiment Results and Analysis
 
+## 2026-07-16 20:00 UTC - 独立 future-object supervision 数据视图
+
+- 大规模 wrapper 新增显式 `MANISKILL_EORT_INCLUDE_FUTURE_TARGETS=1`，只允许与 metric action 同用，并写入独立 `*_metric_dynamics` LeRobot 根；默认数据格式和无 future policy modality 约束不变。
+- dynamics view 保存 h=1/4/8 的 18D object `Δxyz+Δrotvec` 及 3D valid mask。collection audit 增加 `--future-targets` 合同检查，防止普通数据和 auxiliary-target 数据混淆。
+- 真实 Push 三视觉 dynamics export/audit 通过：3 unique seeds、3 episodes、202 steps。该结果没有训练 predictor，也不能证明未来状态预测准确。
+
 ## 2026-07-16 17:45:00 UTC - Reversible metric task action and Panda replay
 
 - Source audit: Panda `pd_ee_delta_pose` maps normalized translation to `[-0.1,0.1] m`, maps the normalized rotation vector through unit-ball clipping then multiplies by `-0.1 rad` as root-aligned XYZ Euler, and maps gripper to the physical `[-0.01,0.04] m` target. All six Push/Pick production-smoke trajectories had rotation norm below one (`max=0.9423`), so no source command was clipped.

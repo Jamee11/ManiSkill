@@ -21,11 +21,21 @@ TRACK_DELAY=${MANISKILL_EORT_TRACK_DELAY:-2}
 TRACK_ID_SWITCH_PROB=${MANISKILL_EORT_TRACK_ID_SWITCH_PROB:-0.3}
 TRACK_CORRUPTION_SEED=${MANISKILL_EORT_TRACK_CORRUPTION_SEED:-17}
 ACTION_SOURCE=${MANISKILL_EORT_ACTION_SOURCE:-panda_pd_ee_delta_pose}
+INCLUDE_FUTURE_TARGETS=${MANISKILL_EORT_INCLUDE_FUTURE_TARGETS:-0}
 
 case "${ACTION_SOURCE}" in
   panda_pd_ee_delta_pose) action_output_suffix= ;;
   metric_task_delta_pose) action_output_suffix=_metric ;;
   *) echo "MANISKILL_EORT_ACTION_SOURCE must be panda_pd_ee_delta_pose or metric_task_delta_pose" >&2; exit 2 ;;
+esac
+case "${INCLUDE_FUTURE_TARGETS}" in
+  0) future_export_args=() ;;
+  1)
+    [[ "${ACTION_SOURCE}" == metric_task_delta_pose ]] || { echo "Future targets require metric_task_delta_pose" >&2; exit 2; }
+    action_output_suffix=_metric_dynamics
+    future_export_args=(--include-object-future-targets)
+    ;;
+  *) echo "MANISKILL_EORT_INCLUDE_FUTURE_TARGETS must be 0 or 1" >&2; exit 2 ;;
 esac
 
 case "${TASK}" in
@@ -58,8 +68,8 @@ variant_env() {
 }
 
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
-  printf '{"collection_root":"%s","task":"%s","split":"%s","variants":"%s","num_traj_per_variant":%s,"start_seed":%s,"seed_block_size":%s,"exports":"%s","action_source":"%s","controller_replay_envs":%s,"gpu":"%s"}\n' \
-    "${COLLECTION_ROOT}" "${TASK}" "${SPLIT}" "${VARIANTS}" "${NUM_TRAJ}" "${START_SEED}" "${SEED_BLOCK_SIZE}" "${EXPORTS}" "${ACTION_SOURCE}" "${CONTROLLER_REPLAY_ENVS}" "${CUDA_VISIBLE_DEVICES:-unset}"
+  printf '{"collection_root":"%s","task":"%s","split":"%s","variants":"%s","num_traj_per_variant":%s,"start_seed":%s,"seed_block_size":%s,"exports":"%s","action_source":"%s","future_targets":%s,"controller_replay_envs":%s,"gpu":"%s"}\n' \
+    "${COLLECTION_ROOT}" "${TASK}" "${SPLIT}" "${VARIANTS}" "${NUM_TRAJ}" "${START_SEED}" "${SEED_BLOCK_SIZE}" "${EXPORTS}" "${ACTION_SOURCE}" "${INCLUDE_FUTURE_TARGETS}" "${CONTROLLER_REPLAY_ENVS}" "${CUDA_VISIBLE_DEVICES:-unset}"
   exit 0
 fi
 if [[ ! -x "${PYTHON}" || ! -x "${DIT4DIT_PYTHON}" || ! -f "${DIT4DIT_ROOT}/examples/RLBench_EORT/scripts/convert_maniskill_eort_to_lerobot.py" ]]; then
@@ -131,6 +141,6 @@ for index in "${!variants[@]}"; do
     "${DIT4DIT_PYTHON}" "${DIT4DIT_ROOT}/examples/RLBench_EORT/scripts/convert_maniskill_eort_to_lerobot.py" \
       --trajectory-path "${controller_path}" --derived-dir "${derived_dir}" \
       --output-root "${output_root}" --dataset-name "${dataset_name}" --fps "${FPS}" \
-      --action-source "${ACTION_SOURCE}" "${export_args[@]}"
+      --action-source "${ACTION_SOURCE}" "${future_export_args[@]}" "${export_args[@]}"
   done
 done

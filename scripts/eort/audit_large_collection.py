@@ -33,6 +33,7 @@ def audit_collection(
     variants: list[str],
     action_source: str,
     exports: list[str],
+    future_targets: bool = False,
 ) -> dict:
     unknown_exports = set(exports) - EXPORTS.keys()
     if unknown_exports:
@@ -41,10 +42,12 @@ def audit_collection(
         "panda_pd_ee_delta_pose": "panda_pd_ee_delta_pose_command",
         "metric_task_delta_pose": "metric_task_delta_pose_command",
     }[action_source]
-    action_suffix = "_metric" if action_source == "metric_task_delta_pose" else ""
+    if future_targets and action_source != "metric_task_delta_pose":
+        raise ValueError("Future targets require metric_task_delta_pose")
+    action_suffix = "_metric_dynamics" if future_targets else ("_metric" if action_source == "metric_task_delta_pose" else "")
     prefix = f"maniskill_eort_{task}_256"
     owners: dict[int, str] = {}
-    report = {"root": str(root), "task": task, "action_source": action_source, "shards": []}
+    report = {"root": str(root), "task": task, "action_source": action_source, "future_targets": future_targets, "shards": []}
 
     for split in splits:
         for variant in variants:
@@ -98,6 +101,7 @@ def audit_collection(
                     converted.get("episodes") != len(seed_rows)
                     or converted.get("action_representation") != action_source
                     or converted.get("condition_source") != condition
+                    or bool(converted.get("object_future_targets", False)) != future_targets
                 ):
                     raise ValueError(f"{name} {export} LeRobot contract differs from source shard")
 
@@ -119,6 +123,7 @@ def main() -> None:
     parser.add_argument("--variants", default="fixed,camera_rand,occluded")
     parser.add_argument("--action-source", choices=("panda_pd_ee_delta_pose", "metric_task_delta_pose"), default="panda_pd_ee_delta_pose")
     parser.add_argument("--exports", default="oracle,segdepth_proxy,track_corrupt")
+    parser.add_argument("--future-targets", action="store_true")
     args = parser.parse_args()
     print(json.dumps(audit_collection(
         args.root,
@@ -127,6 +132,7 @@ def main() -> None:
         args.variants.split(","),
         args.action_source,
         args.exports.split(","),
+        args.future_targets,
     ), indent=2))
 
 

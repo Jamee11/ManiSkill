@@ -114,6 +114,15 @@ MANISKILL_EORT_ACTION_SOURCE=metric_task_delta_pose
 
 raw HDF5、sidecar 和预览不变；LeRobot 输出自动写到 `oracle_metric`、`segdepth_proxy_metric`、`track_corrupt_metric`。每步 action 是 `[task_dx_m,task_dy_m,task_dz_m,task_drx_rad,task_dry_rad,task_drz_rad,gripper_open]`。它是 task/world 轴增量，不是当前设计文档中更强的 EEF-local 双臂最终契约；真机 adapter 仍必须做 task-from-base 标定和限幅。
 
+若还要排“预测未来 object motion→Action DiT”的后续消融，在同一次新 collection 中同时设置：
+
+```bash
+MANISKILL_EORT_ACTION_SOURCE=metric_task_delta_pose \
+MANISKILL_EORT_INCLUDE_FUTURE_TARGETS=1
+```
+
+这会写独立的 `oracle_metric_dynamics`、`segdepth_proxy_metric_dynamics`、`track_corrupt_metric_dynamics` 数据根。默认值为 `0`，默认数据仍不包含任何 future modality。dynamics view 额外保存 h=`1/4/8` 的 18D `object Δxyz+Δrotvec` target 与 3D valid mask；普通 `_metric` mixture 会忽略这些字段。
+
 确认后删除 `DRY_RUN=1` 才会采集。每次调用对每个 variant 采 `NUM_TRAJ` 条**独立**成功物理轨迹；例如三个 variant 加 `NUM_TRAJ=500` 是 1,500 条独立物理轨迹，不是同一条轨迹三次重渲染。
 
 ```bash
@@ -153,10 +162,11 @@ train/val/test 全部采完后，在排 tracker 或 policy 训练前运行：
   scripts/eort/audit_large_collection.py \
   --root /remote-home/jinminghao/datasets/maniskill_eort_large_v2 \
   --task push_cube \
-  --action-source metric_task_delta_pose
+  --action-source metric_task_delta_pose \
+  --future-targets
 ```
 
-该命令只读，不创建或修改数据。它要求三个 split × 三个视觉 variant 全部存在，并检查成功 seed 全局无重复、seed/sidecar trajectory 对齐、每条 action provenance、visibility QA，以及 oracle/proxy/corrupt LeRobot episode 数、condition 与 action 语义。任何一项不一致都会非零退出；不要绕过后继续训练。只检查单个 smoke split 时可显式设置 `--splits train --exports oracle`。
+该命令只读，不创建或修改数据。它要求三个 split × 三个视觉 variant 全部存在，并检查成功 seed 全局无重复、seed/sidecar trajectory 对齐、每条 action provenance、visibility QA，以及 oracle/proxy/corrupt LeRobot episode 数、condition、action 与 future-target 标记。普通 metric 数据去掉 `--future-targets`。任何一项不一致都会非零退出；不要绕过后继续训练。只检查单个 smoke split 时可显式设置 `--splits train --exports oracle`。
 
 tracker 不读 LeRobot 视频，因为它需要 raw metric depth 与 camera calibration。自动 launcher 选择 `*.pd_ee_delta_pose.physx_cpu.h5` 与 `derived_controller_goal_segdepth`；只按同一 physical trajectory 分组切分，不得把 train raw 与 val/test raw 拼在一起训练。
 
