@@ -4,7 +4,7 @@
 
 - Reason: The cross-embodiment schema declared object extent, but current raw/sidecar data omitted it. Adding size randomization first would therefore create an unobservable data-construction change and make replay/QA ambiguous.
 - Change: Push/Pick EORT observations now record full cube side lengths as `obj_extent(T+1,3)`. The v2 sidecar requires positive episode-static values and writes `object_extent(1,3)` plus provenance; the production audit requires the explicit raw source. Historical Panda EORT raw remains derivable through its exact fixed 4 cm task constant, but that fallback cannot pass the production audit. The current DiT4DiT policy condition is unchanged.
-- Verification: Focused v2 derivation and collection-audit tests pass. A retained real 71-step Push controller HDF5 without the new raw field re-derived `object_extent(1,3)=[0.04,0.04,0.04]` with explicit legacy provenance. A fresh renderer/runtime smoke was not claimed; no collection or training was started.
+- Verification: Focused v2 derivation and collection-audit tests pass. A retained real 71-step Push controller HDF5 without the new raw field re-derived `object_extent(1,3)=[0.04,0.04,0.04]` with explicit legacy provenance. Then GPU 7 ran the production wrapper on one new fixed Push episode: 1/1 source and controller replay success, raw `(72,3)` and sidecar `(1,3)` extents aligned, all three metric LeRobot exports and the collection audit passed. No training was started.
 
 ## 2026-07-16 19:10 UTC - Add an offline real-robot calibration gate
 

@@ -4,7 +4,9 @@
 
 - Current Push/Pick already randomize object/goal poses; EORT additionally covers camera pose and visual occlusion. It does not yet vary cube geometry, mass/friction, appearance, lighting, sensor noise or robot calibration.
 - ManiSkill's existing SO100 digital-twin task demonstrates seeded scene-load randomization for geometry, friction, color and lighting. Geometry changes are not ordinary saved environment state, so reusing that pattern safely requires proving that controller replay reconstructs the identical asset from the recorded episode seed.
-- Implemented only the missing prerequisite: explicit raw/sidecar object extent with production provenance enforcement. Synthetic derivation/audit checks pass; the retained real 71-step Push controller HDF5, which predates the raw field, re-derived the exact fixed `[0.04,0.04,0.04] m` extent and was marked `legacy_fixed_panda_cube_0.04m`. Size/friction/lighting variants remain deferred until one source→controller replay smoke proves asset identity; no generalization claim follows from this change.
+- Implemented only the missing prerequisite: explicit raw/sidecar object extent with production provenance enforcement. Synthetic derivation/audit checks pass; the retained real 71-step Push controller HDF5, which predates the raw field, re-derived the exact fixed `[0.04,0.04,0.04] m` extent and was marked `legacy_fixed_panda_cube_0.04m`.
+- Runtime smoke: GPU 7, fixed Push, seed 0, metric action, one production-wrapper episode. Source motion planning and controller replay were 1/1 successful with 71 actions. Raw extent was `(72,3)`, sidecar extent `(1,3)`, both approximately 0.04 m; oracle/segdepth/corrupt LeRobot exports and the read-only collection audit passed. Output: `/remote-home/jinminghao/datasets/maniskill_eort_extent_smoke_20260716_retry` (81 MB).
+- Size/friction/lighting variants remain deferred until a randomized source→controller replay proves identical seeded asset reconstruction; the fixed-size smoke is no generalization evidence.
 
 ## 2026-07-16 19:10 UTC - Franka/Piper deployment-interface audit
 

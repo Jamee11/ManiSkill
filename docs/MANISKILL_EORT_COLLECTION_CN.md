@@ -52,6 +52,8 @@ bash scripts/eort/collect_push_cube_objectcentric_v2.sh
 
 v2 的首条真实 HDF5 已确认物理字段与 `obj_segmentation_id`/`goal_segmentation_id` 均为 `T+1`，而 derived labels 是 `T`；通过前不得将 v2 接入训练。批量阶段仍须检查 visibility fraction 分布，不能仅凭一条全可见轨迹声明感知鲁棒。
 
+2026-07-16 的新字段 smoke 位于 `/remote-home/jinminghao/datasets/maniskill_eort_extent_smoke_20260716_retry`：GPU 7 上 Push fixed 1/1 成功、71 actions/72 observations，raw `obj_extent=(72,3)`、sidecar `object_extent=(1,3)`，均为约 `0.04m`，manifest source 为显式 raw 字段；metric oracle/proxy/corrupt 三个 LeRobot 视图和完整 collection audit 均通过。该 81 MB 输出只验证链路，不是训练数据规模或尺寸泛化证据。
+
 ## 在有可用 GPU 的机器采集
 
 CPU PhysX 配合 GPU renderer 是首版的目标配置。不要设置空的 `CUDA_VISIBLE_DEVICES`；本机的 SAPIEN CPU renderer 会崩溃。先以 1 条 smoke 验证指定 GPU，再扩大到 10 条。
