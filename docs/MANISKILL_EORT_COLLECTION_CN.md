@@ -27,6 +27,7 @@ v2 不替换 v1，而是使用独立的 `PushCubeEORT-v1` 和输出目录。它�
 新采集的 v2 每条 `.npz` 额外包含：
 
 - `object_extent` `(1,3)`：目标物体完整 xyz 边长，单位米；raw HDF5 以 `(T+1,3)` 明确保存，sidecar 验证 episode 内固定后去重。它当前只作为 geometry/QA 标签，不进入 17D policy condition。旧 Panda EORT raw 可精确回填固定的 `[0.04,0.04,0.04]`，但正式 collection audit 只接受 raw 中显式存在的字段；
+- `object_mass` `(1,1)`：PhysX actor 的实际质量，单位 kg；raw HDF5 为 `(T+1,1)`。它只作 dynamics/QA 标签，不进入 policy。旧数据可由记录的 extent 与默认 `1000 kg/m³` 密度精确回填，但正式 audit 只接受显式 raw provenance；
 - `object_friction` `(1,2)`：`[static_friction,dynamic_friction]`，raw HDF5 为 `(T+1,2)`；同样只作物理参数/QA 标签，不进入 policy。旧数据可回填 ManiSkill 默认 `[0.3,0.3]`，正式 audit 只接受显式 raw provenance；
 - `robot_obj_contact_force` `(T,3)`、`robot_obj_contact_force_norm` `(T,1)`、`physical_contact` `(T,1)`、`push_interaction_phase` `(T,1)`；`physical_contact` 使用 Panda hand/左右 finger 的 force norm 之和，避免向量抵消；
 - `object_linear_velocity` / `object_angular_velocity` `(T,3)`；

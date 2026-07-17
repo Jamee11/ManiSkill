@@ -115,12 +115,15 @@ def audit_collection(
                 and row.get("fields", {}).get("object_extent") == [1, 3]
                 and row.get("object_extent", {}).get("policy_input") is False
                 and row.get("object_extent", {}).get("source") == "obs/extra/obj_extent"
+                and row.get("fields", {}).get("object_mass") == [1, 1]
+                and row.get("object_mass", {}).get("source") == "obs/extra/obj_mass"
+                and row.get("object_mass", {}).get("policy_input") is False
                 and row.get("fields", {}).get("object_friction") == [1, 2]
                 and row.get("object_friction", {}).get("source") == "obs/extra/obj_friction"
                 and row.get("object_friction", {}).get("policy_input") is False
                 for row in records
             ):
-                raise ValueError(f"{name} lacks verified {action_source} or object-extent provenance")
+                raise ValueError(f"{name} lacks verified {action_source} or object-physics provenance")
 
             summary = _json(derived / "summary.json")
             qa = summary.get("visibility_qa")

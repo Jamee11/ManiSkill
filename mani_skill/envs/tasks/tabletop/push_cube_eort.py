@@ -53,6 +53,7 @@ class PushCubeEORTEnv(PushCubeEnv):
             obj_segmentation_id=self.obj.per_scene_id[:, None],
             goal_segmentation_id=self.goal_region.per_scene_id[:, None],
             obj_extent=torch.full_like(self.obj.pose.p, 2 * self.cube_half_size),
+            obj_mass=self.obj.mass[:, None].to(self.device),
             obj_friction=torch.tensor(
                 getattr(self, "eort_obj_friction", (0.3, 0.3)),
                 dtype=self.obj.pose.p.dtype,

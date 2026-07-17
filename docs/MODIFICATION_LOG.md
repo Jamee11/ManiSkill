@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-17 02:25 UTC - Persist actual object mass
+
+- Reason: The geometry split already changes cube mass because SAPIEN uses fixed density with variable volume, but mass was absent from raw and sidecar data. Future-motion supervision would therefore be paired with an unaudited dynamics parameter.
+- Change: Push/Pick EORT observations now read the actual PhysX actor mass into `obj_mass(T+1,1)`; the sidecar validates it as positive and episode-static, stores `object_mass(1,1)`, and the production audit requires explicit raw provenance. Legacy fixed/geometry recordings remain derivable from their exact default density `1000 kg/m³` and recorded extent, but cannot pass the current production audit. Mass remains QA-only and does not enter the 17D policy condition.
+- Verification: Focused derivation/audit tests pass. GPU 4 state-only resets report fixed Push/Pick `0.064 kg`, Push seed 3100 `0.093729 kg`, and Pick seed 4100 `0.054047 kg`, exactly matching volume × default density. A full source-to-controller smoke is still required before treating the field as production-validated. No training was started.
+
 ## 2026-07-17 02:10 UTC - Extend the isolated geometry/friction split to PickCube
 
 - Reason: Push-only physical variation does not exercise the grasp-sensitive PickCube path, where object size and contact friction directly affect acquisition and transport.

@@ -368,6 +368,12 @@ def derive_trajectory_objectcentric_v2(
         object_extent = np.full((steps + 1, 3), 0.04, dtype=np.float32)
     if np.any(object_extent <= 0) or not np.allclose(object_extent, object_extent[:1]):
         raise ValueError(f"{group.name} object extent must be positive and fixed within an episode")
+    if "obj_mass" in group["obs/extra"]:
+        object_mass = _finite_array(group, "obs/extra/obj_mass", steps, 1)
+    else:
+        object_mass = np.prod(object_extent, axis=1, keepdims=True) * 1000.0
+    if np.any(object_mass <= 0) or not np.allclose(object_mass, object_mass[:1]):
+        raise ValueError(f"{group.name} object mass must be positive and fixed within an episode")
     if "obj_friction" in group["obs/extra"]:
         object_friction = _finite_array(group, "obs/extra/obj_friction", steps, 2)
     else:
@@ -459,6 +465,7 @@ def derive_trajectory_objectcentric_v2(
     arrays.update(
         {
             "object_extent": object_extent[:1],
+            "object_mass": object_mass[:1],
             "object_friction": object_friction[:1],
             "object_linear_velocity": object_linear_velocity[:-1],
             "object_angular_velocity": object_angular_velocity[:-1],
@@ -541,6 +548,12 @@ def derive_dataset(
             else "legacy_fixed_panda_cube_0.04m"
             for key in _trajectory_keys(file)
         }
+        mass_sources = {
+            key: "obs/extra/obj_mass"
+            if "obj_mass" in file[key]["obs/extra"]
+            else "legacy_default_density_1000kg_m3_from_extent"
+            for key in _trajectory_keys(file)
+        }
         friction_sources = {
             key: "obs/extra/obj_friction"
             if "obj_friction" in file[key]["obs/extra"]
@@ -602,6 +615,12 @@ def derive_dataset(
             records[-1]["object_extent"] = {
                 "source": extent_sources[trajectory_id],
                 "layout": "full xyz side lengths in meters",
+                "static_within_episode": True,
+                "policy_input": False,
+            }
+            records[-1]["object_mass"] = {
+                "source": mass_sources[trajectory_id],
+                "layout": "mass in kilograms",
                 "static_within_episode": True,
                 "policy_input": False,
             }

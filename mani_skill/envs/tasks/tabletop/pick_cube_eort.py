@@ -58,6 +58,7 @@ class PickCubeEORTEnv(PickCubeEnv):
             obj_segmentation_id=self.cube.per_scene_id[:, None],
             goal_segmentation_id=self.goal_site.per_scene_id[:, None],
             obj_extent=torch.full_like(self.cube.pose.p, 2 * self.cube_half_size),
+            obj_mass=self.cube.mass[:, None].to(self.device),
             obj_friction=torch.tensor(
                 getattr(self, "eort_obj_friction", (0.3, 0.3)),
                 dtype=self.cube.pose.p.dtype,
