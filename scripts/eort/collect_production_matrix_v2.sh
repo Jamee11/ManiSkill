@@ -13,6 +13,7 @@ VAL_TRAJ=${MANISKILL_EORT_MATRIX_VAL_TRAJ:-100}
 TEST_TRAJ=${MANISKILL_EORT_MATRIX_TEST_TRAJ:-200}
 GEOMETRY_TRAJ=${MANISKILL_EORT_MATRIX_GEOMETRY_TEST_TRAJ:-200}
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PYTHON=${MANISKILL_EORT_PYTHON:-/remote-home/jinminghao/miniconda3/envs/maniskill-eort-v1/bin/python}
 
 [[ "${EXECUTE}" == 0 || "${EXECUTE}" == 1 ]] || { echo "MANISKILL_EORT_MATRIX_EXECUTE must be 0 or 1" >&2; exit 2; }
 [[ "${INCLUDE_GEOMETRY}" == 0 || "${INCLUDE_GEOMETRY}" == 1 ]] || { echo "MANISKILL_EORT_MATRIX_INCLUDE_GEOMETRY_TEST must be 0 or 1" >&2; exit 2; }
@@ -22,14 +23,33 @@ if [[ "${EXECUTE}" == 1 && -z "${MANISKILL_EORT_CUDA_VISIBLE_DEVICES:-}" ]]; the
 fi
 
 run_shard() {
+  local task=$1 split=$2 variants=$3 start_seed=$4 count=$5 variant existing=0
+  local -a requested_variants
+  if [[ "${EXECUTE}" == 1 ]]; then
+    IFS=',' read -r -a requested_variants <<< "${variants}"
+    for variant in "${requested_variants[@]}"; do
+      [[ ! -e "${ROOT}/${task}/${split}/${variant}" ]] || existing=1
+    done
+    if [[ "${existing}" == 1 ]]; then
+      if "${PYTHON}" "${SCRIPT_DIR}/audit_large_collection.py" \
+        --root "${ROOT}" --task "${task}" --splits "${split}" --variants "${variants}" \
+        --action-source metric_task_delta_pose --future-targets \
+        --expected-counts "${split}=${count}" >/dev/null; then
+        echo "Skipping audited complete matrix job: ${task}/${split}/${variants}"
+        return
+      fi
+      echo "Existing matrix job is partial or invalid; preserving it and stopping: ${task}/${split}/${variants}" >&2
+      exit 1
+    fi
+  fi
   MANISKILL_EORT_COLLECTION_ROOT="${ROOT}" \
-  MANISKILL_EORT_TASK="$1" \
-  MANISKILL_EORT_SPLIT="$2" \
-  MANISKILL_EORT_VARIANTS="$3" \
-  MANISKILL_EORT_START_SEED="$4" \
+  MANISKILL_EORT_TASK="${task}" \
+  MANISKILL_EORT_SPLIT="${split}" \
+  MANISKILL_EORT_VARIANTS="${variants}" \
+  MANISKILL_EORT_START_SEED="${start_seed}" \
   MANISKILL_EORT_ACTION_SOURCE=metric_task_delta_pose \
   MANISKILL_EORT_INCLUDE_FUTURE_TARGETS=1 \
-  NUM_TRAJ="$5" \
+  NUM_TRAJ="${count}" \
   DRY_RUN=$((1 - EXECUTE)) \
   bash "${SCRIPT_DIR}/collect_large_objectcentric_v2.sh"
 }

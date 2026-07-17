@@ -1,5 +1,11 @@
 # Experiment Results and Analysis
 
+## 2026-07-17 03:07 UTC - Production matrix job-level restart gate
+
+- Setup: Exercised the launcher without simulation using a missing root, requested variant directories plus an audit-success stub, and a partial requested directory plus an audit-failure stub.
+- Result: The missing root retained all eight planned jobs; the complete case skipped exactly one audited task/split/variant group; the partial case exited nonzero and left the directory untouched.
+- Analysis: Restart is now safe only between matrix jobs. The launcher intentionally does not append to a partial HDF5 or guess that file presence means completion; a real external restart still depends on the current full production audit, including exact counts and non-exhausted attempt provenance.
+
 ## 2026-07-17 02:47 UTC - Production episode-count gate
 
 - Added an optional read-only audit contract for successful episodes per variant/split. It does not change collector defaults or invalidate deliberately small smoke checks unless explicitly enabled.

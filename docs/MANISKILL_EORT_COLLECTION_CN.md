@@ -175,6 +175,8 @@ bash scripts/eort/collect_production_matrix_v2.sh
 
 要在不同 GPU/进程拆分排期，设置 `MANISKILL_EORT_MATRIX_TASKS=push_cube|pick_cube` 和 `MANISKILL_EORT_MATRIX_SPLITS=train|val|test`；逗号可组合多个值。`MANISKILL_EORT_MATRIX_INCLUDE_GEOMETRY_TEST=0` 可关闭 test 的独立 geometry job。不要让两个进程执行同一个 task/split；脚本仍通过底层 collector 拒绝覆盖。
 
+矩阵可以在 **job 边界**安全重启：执行模式遇到已有 variant 目录时，会先用当前 production audit 和该 split 的精确 episode 数检查整个请求 job；全部通过才打印 `Skipping audited complete matrix job` 并继续后续 job。任何部分、旧 schema 或无效 job 都会原样保留并停止。它不支持在单个 HDF5 内追加/续采；这类失败需先保留诊断数据，再换新 collection root 重新排该 job。
+
 建议第一批将 train/val/test 分别调用三次。脚本在未显式设置 `NUM_TRAJ` 时按 split 默认使用 PushCube `500/100/200` 每 variant；显式 `NUM_TRAJ` 仍会覆盖。先按该规模跑完整链路，再根据 oracle gate 决定是否扩大到每 variant `1000+`；PickCube 只能在其 visual GPU smoke 后按同样协议采集。当前脚本默认 CPU PhysX + 指定 GPU renderer，单进程采集；不要为增速启用多 renderer 进程。
 
 ### 训练根目录对应关系

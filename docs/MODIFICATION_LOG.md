@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-17 03:07 UTC - Safely restart the production matrix at job boundaries
+
+- Reason: Re-running the eight-job launcher after a host or scheduler interruption would revisit already completed shards and stop at the collector's no-overwrite guard, even when the next matrix job had never started.
+- Change: During explicit execution only, the matrix now checks whether any requested variant directory exists. It skips the job only when the existing production audit passes the exact task/split/variant, metric-action, future-target and episode-count contract. Any partial or invalid requested job is preserved and stops the matrix; no files are appended, overwritten, moved or deleted. Print-only planning remains unchanged.
+- Verification: Shell syntax and `git diff --check` pass. Synthetic paths verify that a fresh root still emits eight jobs, an existing audit-success job is skipped, and an existing audit-failure job exits while preserving its directory. Existing audit unittests independently cover the full shard contract. No simulation, collection or training was started.
+
 ## 2026-07-17 02:57 UTC - Bound successful-trajectory collection attempts
 
 - Reason: `--only-count-success` historically retried failed task seeds without a limit. A difficult variant or broken planner could therefore run forever while production scheduling waited for a fixed successful-episode count.
