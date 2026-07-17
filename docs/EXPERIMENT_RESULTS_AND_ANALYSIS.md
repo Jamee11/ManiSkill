@@ -1,5 +1,12 @@
 # Experiment Results and Analysis
 
+## 2026-07-17 02:34 UTC - Actual PhysX object-mass provenance smoke
+
+- Setup: GPU 4, ManiSkill commit `7a0029f`, isolated geometry-rand metric smokes: Push seed 5100 and Pick seed 6100. Retained roots: `/remote-home/jinminghao/datasets/maniskill_eort_mass_smoke_20260717_{push,pick}` (73/87 MB).
+- Result: Push and Pick source motion planning plus controller replay were each 1/1 successful over 63/76 steps. Raw `obj_mass(T+1,1)` was episode-static at `0.086086/0.072059 kg`, matched exactly between source/controller HDF5, and matched recorded extent volume × SAPIEN default density `1000 kg/m³`.
+- QA: Both sidecars stored `object_mass(1,1)` with explicit raw provenance; both production audits and metric LeRobot exports passed. Mass remains sidecar-only and does not change DiT4DiT input or architecture.
+- Boundary: Geometry currently couples volume and mass through fixed density. Independent density/mass randomization should wait for a measured real-object range; these two smokes are provenance evidence, not dynamics-generalization evidence.
+
 ## 2026-07-17 02:25 UTC - PickCube seeded geometry/friction source-to-controller smoke
 
 - Setup: GPU 4, `PickCubeEORTGeometryRand-v1`, seeds 4100/4101/4102, metric action export, isolated `geometry_rand` test shard. Output: `/remote-home/jinminghao/datasets/maniskill_eort_pick_geometry_rand_smoke_20260717` (238 MB).
