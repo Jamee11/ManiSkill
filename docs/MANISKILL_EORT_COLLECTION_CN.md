@@ -51,7 +51,7 @@ bash scripts/eort/collect_push_cube_objectcentric_v2.sh
 
 若需要跨 episode 的外部相机外参随机化，额外设置 `MANISKILL_EORT_ENV_ID=PushCubeEORTCameraRand-v1`。该环境在 reset 时随机一次相机 pose、episode 内保持不动；raw `sensor_param/base_camera/{intrinsic_cv,extrinsic_cv}` 是唯一的标定记录来源。固定相机与随机相机数据必须分开记录 split，不能将其混为同一泛化结论。
 
-可选的 `geometry_rand` shard 使用 `PushCubeEORTGeometryRand-v1`，每个 episode 以 simulator seed 重建 cube half-size `[0.017,0.023]m` 和静/动摩擦 `[0.15,0.60]`，并强制 `num_envs=1`、`reconfiguration_freq=1`。它不加入默认三视觉分支；只有 source/controller HDF5 的 extent/friction 逐项一致且 replay success 后，才可纳入训练：
+可选的 `geometry_rand` shard 分别使用 `PushCubeEORTGeometryRand-v1` 或 `PickCubeEORTGeometryRand-v1`，每个 episode 以 simulator seed 重建 cube half-size `[0.017,0.023]m` 和静/动摩擦 `[0.15,0.60]`，并强制 `num_envs=1`、`reconfiguration_freq=1`。它不加入默认三视觉分支；只有 source/controller HDF5 的 extent/friction 逐项一致且 replay success 后，才可纳入训练：
 
 ```bash
 MANISKILL_EORT_VARIANTS=geometry_rand \
@@ -59,7 +59,7 @@ MANISKILL_EORT_CONTROLLER_REPLAY_ENVS=1 \
 bash scripts/eort/collect_large_objectcentric_v2.sh
 ```
 
-GPU 7 的三 seed smoke 已通过上述门槛：seeds 3100/3101/3102 的完整边长分别为 `4.542/3.575/4.211 cm`，摩擦为 `0.178/0.216/0.387`；source 和 controller HDF5 参数逐元素相等，motion planning 与 controller replay 均为 3/3 success。输出为 `/remote-home/jinminghao/datasets/maniskill_eort_geometry_rand_smoke_20260716`。这只证明 seeded reconstruction，不代表范围设计已匹配真机分布。
+Push GPU 7 的 seeds 3100/3101/3102 与 Pick GPU 4 的 seeds 4100/4101/4102 均通过上述门槛。Pick 完整边长为 `3.781/3.862/4.309 cm`、摩擦为 `0.434/0.333/0.451`，source/controller 参数逐元素相等，motion planning 与 controller replay 3/3 success，共 208 步；production audit 和 metric DiT4DiT loader 通过。Pick 输出为 `/remote-home/jinminghao/datasets/maniskill_eort_pick_geometry_rand_smoke_20260717`。这些 smoke 只证明 seeded reconstruction，不代表范围设计已匹配真机分布。
 
 v2 的首条真实 HDF5 已确认物理字段与 `obj_segmentation_id`/`goal_segmentation_id` 均为 `T+1`，而 derived labels 是 `T`；通过前不得将 v2 接入训练。批量阶段仍须检查 visibility fraction 分布，不能仅凭一条全可见轨迹声明感知鲁棒。
 

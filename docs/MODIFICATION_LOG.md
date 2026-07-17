@@ -4,7 +4,7 @@
 
 - Reason: Push-only physical variation does not exercise the grasp-sensitive PickCube path, where object size and contact friction directly affect acquisition and transport.
 - Change: Added optional `PickCubeEORTGeometryRand-v1` with the same seeded half-size `[0.017,0.023]m`, shared static/dynamic friction `[0.15,0.60]`, one-environment and per-episode scene-reconfiguration constraints as the verified Push split. Registered the existing Pick motion planner, sidecar schema, production collector and audit. Default fixed/camera/occluded collection and DiT4DiT policy inputs remain unchanged.
-- Verification: Python/shell syntax, focused registration/audit tests and the Pick `geometry_rand` production-wrapper dry-run pass. Real source-to-controller replay and downstream export evidence will be recorded separately. No training was started.
+- Verification: Python/shell syntax and focused registration/audit tests pass. GPU 4 collected seeds 4100–4102; source motion planning and controller replay were 3/3 successful over 208 steps, with exact source/controller extent+friction equality. Production audit and the isolated DiT4DiT metric loader passed with `(1,64)/(8,7)/(3,224,224)` samples. No training was started.
 
 ## 2026-07-16 19:33 UTC - Add an isolated seeded geometry/friction split
 

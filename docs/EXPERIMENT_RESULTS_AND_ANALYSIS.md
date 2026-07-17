@@ -1,5 +1,12 @@
 # Experiment Results and Analysis
 
+## 2026-07-17 02:25 UTC - PickCube seeded geometry/friction source-to-controller smoke
+
+- Setup: GPU 4, `PickCubeEORTGeometryRand-v1`, seeds 4100/4101/4102, metric action export, isolated `geometry_rand` test shard. Output: `/remote-home/jinminghao/datasets/maniskill_eort_pick_geometry_rand_smoke_20260717` (238 MB).
+- Result: Source motion planning and Panda controller replay were 3/3 successful with lengths 65/76/67. Full side lengths were `3.781/3.862/4.309 cm`; static/dynamic friction was `0.434/0.333/0.451`. Both raw HDF5 files matched exactly for extent/friction on every frame and trajectory.
+- QA: Production audit passed for 3 unique seeds and 208 steps. Phase counts were `122/2/73/11`; object visible 208/208, goal/relational visible and segdepth-valid 166/208. The isolated metric DiT4DiT mixture loaded one 208-step component with state `(1,64)`, action `(8,7)`, image `(3,224,224)`.
+- Boundary: This verifies deterministic grasp-domain replay and plumbing only. It is not enough to estimate the success distribution or sim2real benefit, and simulator `is_grasped` remains label-only.
+
 ## 2026-07-16 19:41 UTC - Seeded geometry/friction source-to-controller smoke
 
 - Setup: GPU 7, `PushCubeEORTGeometryRand-v1`, seeds 3100/3101/3102, metric action export, one isolated `geometry_rand` shard. Output: `/remote-home/jinminghao/datasets/maniskill_eort_geometry_rand_smoke_20260716` (232 MB).
