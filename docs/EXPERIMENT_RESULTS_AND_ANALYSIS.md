@@ -1,5 +1,11 @@
 # Experiment Results and Analysis
 
+## 2026-07-17 02:41 UTC - Full external collection matrix dry-run
+
+- The print-only production launcher emitted eight jobs: visual train/val/test plus geometry held-out test for both Push and Pick. Planned successful episode count is 5,200; no simulator or renderer was started.
+- Seed blocks are visual train `0 + variant×100k`, val `1M + variant×100k`, test `2M + variant×100k`, and geometry test `3M`, preventing the overlap caused by invoking geometry separately with the ordinary test default.
+- Every job explicitly selects metric task action and future targets, so one production schedule supports cross-robot action training and matched-data dynamics-off/predicted ablations. Real collection still requires external storage/GPU smoke and explicit execution opt-in.
+
 ## 2026-07-17 02:37 UTC - Shard-level object-physics coverage QA
 
 - Added summary/audit reporting only; simulator, data fields and model inputs are unchanged. Each shard reports episode-level min/median/max for extent, actual mass and both friction coefficients.

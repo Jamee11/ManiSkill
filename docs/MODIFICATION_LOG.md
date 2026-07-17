@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-17 02:41 UTC - Add a safe production collection matrix launcher
+
+- Reason: The verified collector handled one task/split shard at a time. Manually scheduling Push/Pick × train/val/test plus a separate geometry test could omit jobs or reuse the test seed block, and could accidentally fall back to Panda-specific actions or omit future-motion targets.
+- Change: Added a print-only-by-default launcher for the full eight-job matrix. Visual train/val/test use start seeds `0/1,000,000/2,000,000`; held-out geometry test uses disjoint `3,000,000`. It fixes exports to metric 7D task actions with h=1/4/8 future targets, supports task/split partitioning across external GPUs, and requires explicit `MANISKILL_EORT_MATRIX_EXECUTE=1` plus a renderer GPU before mutation. The existing single-shard collector remains authoritative and unchanged.
+- Verification: Shell syntax and the default dry-run pass. It emits exactly eight jobs and 5,200 planned successful episodes; a Pick-test-only partition emits one visual job when geometry is disabled. No data or training was started.
+
 ## 2026-07-17 02:37 UTC - Audit shard-level object-physics coverage
 
 - Reason: Per-trajectory extent/mass/friction provenance did not reveal whether a large shard actually covered its intended physical range, so a nominal domain-randomization run could silently collapse to a narrow distribution.
