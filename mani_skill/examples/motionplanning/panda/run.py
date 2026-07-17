@@ -17,6 +17,7 @@ MP_SOLUTIONS = {
     "PickCubeEORT-v1": solvePickCube,
     "PickCubeEORTCameraRand-v1": solvePickCube,
     "PickCubeEORTOccluded-v1": solvePickCube,
+    "PickCubeEORTGeometryRand-v1": solvePickCube,
     "StackCube-v1": solveStackCube,
     "PegInsertionSide-v1": solvePegInsertionSide,
     "PlugCharger-v1": solvePlugCharger,

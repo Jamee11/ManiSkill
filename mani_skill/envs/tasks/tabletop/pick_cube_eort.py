@@ -4,14 +4,19 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
+import sapien
 import torch
+from sapien.physx import PhysxMaterial
 
 from mani_skill.envs.tasks.tabletop.pick_cube import PickCubeEnv
 from mani_skill.envs.tasks.tabletop.eort_visual_variants import (
     EORTCameraRandomizationMixin,
     EORTVisualOcclusionMixin,
 )
+from mani_skill.utils.building import actors
 from mani_skill.utils.registration import register_env
+from mani_skill.utils.scene_builder.table import TableSceneBuilder
 
 
 @register_env("PickCubeEORT-v1", max_episode_steps=50)
@@ -76,3 +81,54 @@ class PickCubeEORTCameraRandEnv(EORTCameraRandomizationMixin, PickCubeEORTEnv):
 @register_env("PickCubeEORTOccluded-v1", max_episode_steps=50)
 class PickCubeEORTOccludedEnv(EORTVisualOcclusionMixin, PickCubeEORTEnv):
     """PickCube EORT with a visual-only static occluder in half of episodes."""
+
+
+@register_env("PickCubeEORTGeometryRand-v1", max_episode_steps=50)
+class PickCubeEORTGeometryRandEnv(PickCubeEORTEnv):
+    """Seeded per-episode cube size and friction split for replay QA."""
+
+    CUBE_HALF_SIZE_RANGE = (0.017, 0.023)
+    CUBE_FRICTION_RANGE = (0.15, 0.60)
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("reconfiguration_freq", 1)
+        super().__init__(*args, **kwargs)
+
+    def _load_scene(self, options: dict):
+        if self.num_envs != 1:
+            raise ValueError("PickCubeEORTGeometryRand-v1 currently requires num_envs=1")
+        self.table_scene = TableSceneBuilder(
+            self, robot_init_qpos_noise=self.robot_init_qpos_noise
+        )
+        self.table_scene.build()
+        self.cube_half_size = float(
+            self._batched_episode_rng.uniform(*self.CUBE_HALF_SIZE_RANGE)[0]
+        )
+        friction = float(self._batched_episode_rng.uniform(*self.CUBE_FRICTION_RANGE)[0])
+        self.eort_obj_friction = (friction, friction)
+        builder = self.scene.create_actor_builder()
+        builder.add_box_collision(
+            half_size=[self.cube_half_size] * 3,
+            material=PhysxMaterial(
+                static_friction=friction,
+                dynamic_friction=friction,
+                restitution=0.0,
+            ),
+        )
+        builder.add_box_visual(
+            half_size=[self.cube_half_size] * 3,
+            material=sapien.render.RenderMaterial(
+                base_color=np.array([255, 0, 0, 255]) / 255
+            ),
+        )
+        builder.initial_pose = sapien.Pose(p=[0, 0, self.cube_half_size])
+        self.cube = builder.build(name="cube")
+        self.goal_site = actors.build_sphere(
+            self.scene,
+            radius=self.goal_thresh,
+            color=[0, 1, 0, 1],
+            name="goal_site",
+            body_type="kinematic",
+            add_collision=False,
+            initial_pose=sapien.Pose(),
+        )

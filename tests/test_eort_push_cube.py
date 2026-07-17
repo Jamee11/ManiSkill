@@ -298,16 +298,19 @@ class PushCubeEORTTest(unittest.TestCase):
         from mani_skill.envs.tasks.tabletop.pick_cube_eort import (
             PickCubeEORTCameraRandEnv,
             PickCubeEORTEnv,
+            PickCubeEORTGeometryRandEnv,
             PickCubeEORTOccludedEnv,
         )
 
         self.assertEqual(gym.spec("PickCubeEORT-v1").id, "PickCubeEORT-v1")
         self.assertEqual(gym.spec("PickCubeEORTCameraRand-v1").id, "PickCubeEORTCameraRand-v1")
         self.assertEqual(gym.spec("PickCubeEORTOccluded-v1").id, "PickCubeEORTOccluded-v1")
+        self.assertEqual(gym.spec("PickCubeEORTGeometryRand-v1").id, "PickCubeEORTGeometryRand-v1")
         self.assertEqual(PickCubeEORTEnv.SUPPORTED_ROBOTS, ["panda"])
         self.assertEqual(PickCubeEORTEnv.EORT_CAMERA_RESOLUTION, 256)
         self.assertEqual(PickCubeEORTCameraRandEnv.CAMERA_EYE_JITTER, (0.08, 0.08, 0.05))
         self.assertEqual(PickCubeEORTOccludedEnv.OCCLUDER_PROBABILITY, 0.5)
+        self.assertEqual(PickCubeEORTGeometryRandEnv.CUBE_HALF_SIZE_RANGE, (0.017, 0.023))
 
 
 if __name__ == "__main__":

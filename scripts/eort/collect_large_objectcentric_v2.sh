@@ -63,10 +63,7 @@ variant_env() {
     fixed) echo "${2}EORT-v1" ;;
     camera_rand) echo "${2}EORTCameraRand-v1" ;;
     occluded) echo "${2}EORTOccluded-v1" ;;
-    geometry_rand)
-      [[ "$2" == PushCube ]] || { echo "geometry_rand currently supports push_cube only" >&2; return 2; }
-      echo "PushCubeEORTGeometryRand-v1"
-      ;;
+    geometry_rand) echo "${2}EORTGeometryRand-v1" ;;
     *) echo "unknown variant: $1" >&2; return 2 ;;
   esac
 }

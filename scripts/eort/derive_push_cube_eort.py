@@ -29,6 +29,7 @@ OBJECTCENTRIC_V2_ENV_IDS = (
     "PickCubeEORT-v1",
     "PickCubeEORTCameraRand-v1",
     "PickCubeEORTOccluded-v1",
+    "PickCubeEORTGeometryRand-v1",
 )
 DEFAULT_FUTURE_HORIZONS = (1, 4, 8)
 
@@ -60,6 +61,7 @@ OBJECTCENTRIC_V2_TASK_SPECS = {
     "PickCubeEORT-v1": PICK_CUBE_TASK_SPEC,
     "PickCubeEORTCameraRand-v1": PICK_CUBE_TASK_SPEC,
     "PickCubeEORTOccluded-v1": PICK_CUBE_TASK_SPEC,
+    "PickCubeEORTGeometryRand-v1": PICK_CUBE_TASK_SPEC,
 }
 
 

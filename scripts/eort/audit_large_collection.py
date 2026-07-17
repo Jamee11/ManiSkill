@@ -78,7 +78,7 @@ def audit_collection(
             runtimes[json.dumps(signature, sort_keys=True)] = signature
             env_info, commit_info = metadata.get("env_info", {}), metadata.get("commit_info", {})
             suffix = {"fixed": "", "camera_rand": "CameraRand", "occluded": "Occluded", "geometry_rand": "GeometryRand"}.get(variant)
-            if suffix is None or (variant == "geometry_rand" and task != "push_cube"):
+            if suffix is None:
                 raise ValueError(f"Unsupported variant {variant!r} for {task}")
             expected_env = f"{'PushCube' if task == 'push_cube' else 'PickCube'}EORT{suffix}-v1"
             env_kwargs = env_info.get("env_kwargs", {})
