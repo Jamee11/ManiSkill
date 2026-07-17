@@ -157,6 +157,11 @@ class PushCubeEORTTest(unittest.TestCase):
             )
             self.assertEqual(summary["phase_qa"]["counts"], {"0": 1, "1": 0, "2": 1, "3": 1})
             self.assertEqual(summary["phase_qa"]["task_progress_steps"], 1)
+            physics_qa = summary["object_physics_qa"]
+            self.assertEqual(physics_qa["episodes"], 1)
+            np.testing.assert_allclose(physics_qa["object_extent_min_median_max"], [[0.04] * 3] * 3)
+            np.testing.assert_allclose(physics_qa["object_mass_min_median_max"], [[0.064]] * 3)
+            np.testing.assert_allclose(physics_qa["object_friction_min_median_max"], [[0.3, 0.3]] * 3)
             manifest = json.loads((root / "derived" / "manifest.jsonl").read_text())
             self.assertEqual(manifest["physical_contact"]["source"], "robot_obj_contact_force_norm")
             self.assertEqual(manifest["push_interaction_phase_labels"]["2"], "measured_contact_while_object_moves")

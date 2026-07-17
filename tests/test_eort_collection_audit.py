@@ -41,6 +41,12 @@ def _collection(root: Path, split: str, seed: int, commit: str = "abc123", torch
         "oracle": True, "source_control_mode": "pd_ee_delta_pose", "trajectories": 1, "steps": 3,
         "visibility_qa": {"total_steps": 3, "relational_visible_steps": 2, "relational_segdepth_valid_steps": 1},
         "phase_qa": {"phase_key": "push_interaction_phase", "counts": {"0": 1, "1": 0, "2": 1, "3": 1}},
+        "object_physics_qa": {
+            "episodes": 1,
+            "object_extent_min_median_max": [[0.04, 0.04, 0.04]] * 3,
+            "object_mass_min_median_max": [[0.064]] * 3,
+            "object_friction_min_median_max": [[0.3, 0.3]] * 3,
+        },
     })
     dataset = root / "lerobot" / split / "oracle_metric/maniskill_eort_push_cube_256_fixed_lerobot/meta/conversion_summary.json"
     _write(dataset, {"episodes": 1, "action_representation": "metric_task_delta_pose", "condition_source": "oracle"})
@@ -77,6 +83,12 @@ class CollectionAuditTest(unittest.TestCase):
             summary["phase_qa"]["counts"] = {"0": 2, "1": 0, "2": 0, "3": 1}
             _write(summary_path, summary)
             with self.assertRaisesRegex(ValueError, "phase QA"):
+                audit_collection(root, "push_cube", ["train", "val"], ["fixed"], "metric_task_delta_pose", ["oracle"])
+
+            summary["phase_qa"]["counts"] = {"0": 1, "1": 0, "2": 1, "3": 1}
+            summary["object_physics_qa"]["object_mass_min_median_max"][2][0] = float("nan")
+            _write(summary_path, summary)
+            with self.assertRaisesRegex(ValueError, "physics QA"):
                 audit_collection(root, "push_cube", ["train", "val"], ["fixed"], "metric_task_delta_pose", ["oracle"])
 
 

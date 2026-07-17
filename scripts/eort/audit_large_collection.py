@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 
 
@@ -24,6 +25,16 @@ def _json(path: Path) -> dict:
     if not path.is_file():
         raise ValueError(f"Missing {path}")
     return json.loads(path.read_text())
+
+
+def _valid_positive_range(value: object, width: int) -> bool:
+    return (
+        isinstance(value, list)
+        and len(value) == 3
+        and all(isinstance(row, list) and len(row) == width for row in value)
+        and all(isinstance(item, (int, float)) and math.isfinite(item) for row in value for item in row)
+        and all(0 < value[0][i] <= value[1][i] <= value[2][i] for i in range(width))
+    )
 
 
 def audit_collection(
@@ -127,6 +138,7 @@ def audit_collection(
 
             summary = _json(derived / "summary.json")
             qa = summary.get("visibility_qa")
+            physics_qa = summary.get("object_physics_qa") or {}
             phase_qa = summary.get("phase_qa") or {}
             phase_counts = phase_qa.get("counts") or {}
             expected_phase_key = f"{'push' if task == 'push_cube' else 'pick'}_interaction_phase"
@@ -143,8 +155,12 @@ def audit_collection(
                 or sum(phase_counts.values()) != summary.get("steps")
                 or phase_counts["2"] <= 0
                 or phase_counts["3"] <= 0
+                or physics_qa.get("episodes") != len(seed_rows)
+                or not _valid_positive_range(physics_qa.get("object_extent_min_median_max"), 3)
+                or not _valid_positive_range(physics_qa.get("object_mass_min_median_max"), 1)
+                or not _valid_positive_range(physics_qa.get("object_friction_min_median_max"), 2)
             ):
-                raise ValueError(f"{name} summary/provenance/visibility/phase QA is incomplete")
+                raise ValueError(f"{name} summary/provenance/visibility phase QA or physics QA is incomplete")
 
             for export in exports:
                 condition, dataset_tail = EXPORTS[export]
@@ -159,7 +175,7 @@ def audit_collection(
                     raise ValueError(f"{name} {export} LeRobot contract differs from source shard")
 
             report["shards"].append(
-                {"name": name, "episodes": len(seed_rows), "steps": summary["steps"], "phase_qa": phase_qa, **qa}
+                {"name": name, "episodes": len(seed_rows), "steps": summary["steps"], "phase_qa": phase_qa, "object_physics_qa": physics_qa, **qa}
             )
 
     report["episodes"] = sum(row["episodes"] for row in report["shards"])

@@ -1,5 +1,11 @@
 # Experiment Results and Analysis
 
+## 2026-07-17 02:37 UTC - Shard-level object-physics coverage QA
+
+- Added summary/audit reporting only; simulator, data fields and model inputs are unchanged. Each shard reports episode-level min/median/max for extent, actual mass and both friction coefficients.
+- Read-only re-derivation of retained three-seed geometry data produced Push ranges `3.575–4.542 cm`, `0.04569–0.09373 kg`, `0.178–0.387`, and Pick ranges `3.781–4.309 cm`, `0.05405–0.08000 kg`, `0.333–0.451`.
+- Focused derivation/audit tests pass. Three samples are sufficient to verify ordered aggregation but not distribution coverage; the external production run still needs hundreds of episodes before interpreting quantiles or success rates.
+
 ## 2026-07-17 02:34 UTC - Actual PhysX object-mass provenance smoke
 
 - Setup: GPU 4, ManiSkill commit `7a0029f`, isolated geometry-rand metric smokes: Push seed 5100 and Pick seed 6100. Retained roots: `/remote-home/jinminghao/datasets/maniskill_eort_mass_smoke_20260717_{push,pick}` (73/87 MB).

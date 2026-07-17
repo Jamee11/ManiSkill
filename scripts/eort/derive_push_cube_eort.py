@@ -683,6 +683,15 @@ def derive_dataset(
             "task_progress_steps": int(phase_counts[2]),
             "success_steps": int(phase_counts[3]),
         }
+        physics_qa = {"episodes": len(outputs)}
+        for field in ("object_extent", "object_mass", "object_friction"):
+            values = np.concatenate([arrays[field] for _, arrays in outputs], axis=0)
+            physics_qa[f"{field}_min_median_max"] = [
+                values.min(axis=0).tolist(),
+                np.median(values, axis=0).tolist(),
+                values.max(axis=0).tolist(),
+            ]
+        summary["object_physics_qa"] = physics_qa
         if summary["segmentation_visibility"]:
             object_visible = np.concatenate([arrays["object_visible"][:, 0] for _, arrays in outputs])
             goal_visible = np.concatenate([arrays["goal_visible"][:, 0] for _, arrays in outputs])

@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-17 02:37 UTC - Audit shard-level object-physics coverage
+
+- Reason: Per-trajectory extent/mass/friction provenance did not reveal whether a large shard actually covered its intended physical range, so a nominal domain-randomization run could silently collapse to a narrow distribution.
+- Change: Object-centric `summary.json` now aggregates episode-level min/median/max for 3D extent, scalar mass and static/dynamic friction. The production audit requires positive ordered ranges and matching episode counts, and includes the physics QA in its report. Raw data, randomization ranges, LeRobot policy fields and DiT4DiT are unchanged.
+- Verification: Focused derivation/audit tests pass. Read-only re-derivation of retained three-seed Push/Pick geometry data reports extent `3.575–4.542/3.781–4.309 cm`, mass `0.04569–0.09373/0.05405–0.08000 kg`, and friction `0.178–0.387/0.333–0.451`. No simulation or training was started.
+
 ## 2026-07-17 02:25 UTC - Persist actual object mass
 
 - Reason: The geometry split already changes cube mass because SAPIEN uses fixed density with variable volume, but mass was absent from raw and sidecar data. Future-motion supervision would therefore be paired with an unaudited dynamics parameter.
