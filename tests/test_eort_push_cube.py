@@ -267,6 +267,14 @@ class PushCubeEORTTest(unittest.TestCase):
         recovered = rotate_metric_task_command(rotated, rotation.T)
         np.testing.assert_allclose(recovered, metric, atol=1e-7)
 
+    def test_motionplanning_attempt_budget_validation(self):
+        from mani_skill.examples.motionplanning.panda.run import validate_attempt_budget
+
+        validate_attempt_budget(500, 2500)
+        validate_attempt_budget(500, 0)
+        with self.assertRaisesRegex(ValueError, "at least num_traj"):
+            validate_attempt_budget(500, 499)
+
     def test_local_eef_transition_uses_current_eef_frame(self):
         module = load_module()
         quarter_turn = np.sqrt(0.5)

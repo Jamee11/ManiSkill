@@ -89,9 +89,21 @@ def audit_collection(
                 list(shard.glob("raw/*/motionplanning/*.pd_ee_delta_pose.physx_cpu.seed_manifest.json")),
                 f"controller seed manifest for {name}",
             )
-            seed_rows = _json(seed_path).get("saved_trajectory_seeds", [])
-            if not seed_rows or not all(row.get("success") is True for row in seed_rows):
-                raise ValueError(f"{name} has missing or unsuccessful seeds")
+            seed_manifest = _json(seed_path)
+            seed_rows = seed_manifest.get("saved_trajectory_seeds", [])
+            attempted = seed_manifest.get("attempted_episodes")
+            max_attempts = seed_manifest.get("max_attempts")
+            if (
+                not seed_rows
+                or not all(row.get("success") is True for row in seed_rows)
+                or seed_manifest.get("only_count_success") is not True
+                or seed_manifest.get("successful_episodes") != len(seed_rows)
+                or seed_manifest.get("attempt_budget_exhausted") is not False
+                or not isinstance(attempted, int)
+                or not isinstance(max_attempts, int)
+                or not len(seed_rows) <= attempted <= max_attempts
+            ):
+                raise ValueError(f"{name} has incomplete, unsuccessful or exhausted seed attempts")
             if split in expected_counts and len(seed_rows) != expected_counts[split]:
                 raise ValueError(
                     f"{name} has {len(seed_rows)} episodes, expected {expected_counts[split]}"
@@ -198,7 +210,16 @@ def audit_collection(
                     raise ValueError(f"{name} {export} LeRobot contract differs from source shard")
 
             report["shards"].append(
-                {"name": name, "episodes": len(seed_rows), "steps": summary["steps"], "phase_qa": phase_qa, "object_physics_qa": physics_qa, **qa}
+                {
+                    "name": name,
+                    "episodes": len(seed_rows),
+                    "attempted_episodes": attempted,
+                    "max_attempts": max_attempts,
+                    "steps": summary["steps"],
+                    "phase_qa": phase_qa,
+                    "object_physics_qa": physics_qa,
+                    **qa,
+                }
             )
 
     report["episodes"] = sum(row["episodes"] for row in report["shards"])

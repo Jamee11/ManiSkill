@@ -158,6 +158,8 @@ bash scripts/eort/collect_large_objectcentric_v2.sh
 
 默认 seed 区间为 train=`0`、val=`1000000`、test=`2000000`；同一命令内的 variant 再以 100,000 的 block 分开。raw 旁的 `*.seed_manifest.json` 记录每条保存 trajectory 对应的实际成功 task seed。不要手工复用 `MANISKILL_EORT_START_SEED` 或减小 `MANISKILL_EORT_SEED_BLOCK_SIZE`；否则 split 独立性失效。每个输出目录均拒绝覆盖，重复任务应使用新的 collection root。
 
+正式 collector 只保存成功轨迹，但不会无限重试：默认最多尝试 `5×NUM_TRAJ` 个 seed，可用 `MANISKILL_EORT_MAX_ATTEMPTS` 显式调整，且该值必须不小于 `NUM_TRAJ` 并留在当前 seed block 内。manifest 会记录 `attempted_episodes`、`successful_episodes`、`failed_motion_plans` 和 `attempt_budget_exhausted`。预算耗尽时脚本报错并保留部分 HDF5/manifest 供诊断；该目录不能进入训练，production audit 会拒绝它。修复环境或规划问题后使用新的 collection root 重跑，不覆盖或删除原诊断数据。
+
 外机完整排期优先使用矩阵 launcher。它默认只打印 8 个任务、不写数据：每个 task 的 visual train/val/test 分别是 `500×3 / 100×3 / 200×3` 条，geometry held-out test 为 `200` 条，两任务共 5,200 条成功 episode；geometry 使用独立 seed `3,000,000`，不会与 visual test 重叠。矩阵固定使用 metric 7D action 和 h=1/4/8 future targets：
 
 ```bash

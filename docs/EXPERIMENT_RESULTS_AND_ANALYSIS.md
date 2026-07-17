@@ -320,3 +320,9 @@
 
 - 只运行 production wrapper 的 dry-run，没有启动仿真或采集。train/val/test 在未设置 `NUM_TRAJ` 时分别解析为每视觉分支 500/100/200 条，显式 `NUM_TRAJ=7` 仍覆盖默认。
 - 该修改只避免误采规模；成功率、存储、visibility 分布和长时稳定性仍须由外机正式 collection 与 audit 证明。
+
+# 2026-07-17 02:57 UTC - 成功轨迹采集尝试预算验证
+
+- 设置：在生产 collector 的原生 successful-only motion-planning 路径增加有限尝试预算；默认 `MAX_ATTEMPTS=5×NUM_TRAJ`。不改变 solver、环境、seed 顺序或成功轨迹筛选。GPU 4 上以 `PushCubeEORT-v1`、seed 0、目标 1 条、预算 1 次执行真实 smoke。
+- 结果：真实路径在 1 次尝试内保存 1 条成功轨迹；manifest 为 `attempted=1`、`successful=1`、`failed_motion_plans=0`、`attempt_budget_exhausted=false`。聚焦测试共 3 项通过，包含 production audit 对人工 exhausted manifest 的拒绝；collector dry-run 报告 500 条目标对应 2,500 次默认预算，499 次非法预算在采集前被拒绝。
+- 分析：这消除了 planner/variant 异常导致批处理无限运行的风险，并让失败分片可诊断且不可误入训练。没有人为制造真实规划失败来消耗整个 GPU 预算；外机正式采集的实际 attempts/success 比率、预算是否需要从 5 倍调整，仍必须按 shard manifest 汇总后决定。未启动训练或批量采集。

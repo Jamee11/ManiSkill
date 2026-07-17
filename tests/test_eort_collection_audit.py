@@ -14,6 +14,12 @@ def _write(path: Path, value) -> None:
 def _collection(root: Path, split: str, seed: int, commit: str = "abc123", torch_version: str = "2.7.1") -> None:
     shard = root / "push_cube" / split / "fixed"
     _write(shard / "raw/Env/motionplanning/data.pd_ee_delta_pose.physx_cpu.seed_manifest.json", {
+        "only_count_success": True,
+        "max_attempts": 5,
+        "attempted_episodes": 1,
+        "successful_episodes": 1,
+        "failed_motion_plans": 0,
+        "attempt_budget_exhausted": False,
         "saved_trajectory_seeds": [{"trajectory": "traj_0", "seed": seed, "success": True}]
     })
     _write(shard / "raw/Env/motionplanning/data.pd_ee_delta_pose.physx_cpu.json", {
@@ -77,6 +83,14 @@ class CollectionAuditTest(unittest.TestCase):
             self.assertEqual(report["maniskill_commit"], "abc123")
             self.assertEqual(report["runtime"]["packages"]["sapien"], "3.0.3")
             self.assertEqual(report["shards"][0]["phase_qa"]["counts"]["2"], 1)
+            self.assertEqual(report["shards"][0]["attempted_episodes"], 1)
+
+            seed_manifest_path = root / "push_cube/val/fixed/raw/Env/motionplanning/data.pd_ee_delta_pose.physx_cpu.seed_manifest.json"
+            seed_manifest = json.loads(seed_manifest_path.read_text())
+            seed_manifest["attempt_budget_exhausted"] = True
+            _write(seed_manifest_path, seed_manifest)
+            with self.assertRaisesRegex(ValueError, "exhausted seed attempts"):
+                audit_collection(root, "push_cube", ["train", "val"], ["fixed"], "metric_task_delta_pose", ["oracle"])
 
             _collection(root, "val", 20, commit="different")
             with self.assertRaisesRegex(ValueError, "mixes ManiSkill commits"):

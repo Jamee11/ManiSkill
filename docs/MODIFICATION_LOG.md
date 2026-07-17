@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-17 02:57 UTC - Bound successful-trajectory collection attempts
+
+- Reason: `--only-count-success` historically retried failed task seeds without a limit. A difficult variant or broken planner could therefore run forever while production scheduling waited for a fixed successful-episode count.
+- Change: Added an optional motion-planning `--max-attempts` guard; zero preserves the historical unlimited behavior. The production collector sets it to `5×NUM_TRAJ` by default, records attempted/successful/failed/exhausted provenance in the existing seed manifest, and retains partial files before raising on exhaustion. The collection audit rejects exhausted or inconsistent manifests. Environment physics, planner, accepted trajectories, data tensors, exporters and training behavior are unchanged.
+- Verification: Argument validation and collection-audit tests pass, including rejection of an exhausted manifest; Python/shell syntax and `git diff --check` pass. A real GPU4 `PushCubeEORT-v1` seed-0 run completed 1/1 success within a one-attempt budget and wrote the expected manifest. No training or bulk collection was started.
+
 ## 2026-07-17 02:47 UTC - Enforce planned episode counts before training
 
 - Reason: Provenance and seed checks alone allow a one-episode smoke shard to pass, which could be mistaken for the planned 500/100/200-per-variant production collection and scheduled for formal training.

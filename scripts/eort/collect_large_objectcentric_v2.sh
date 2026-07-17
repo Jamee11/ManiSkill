@@ -50,8 +50,13 @@ case "${SPLIT}" in
 esac
 NUM_TRAJ=${NUM_TRAJ:-${split_num_traj_default}}
 START_SEED=${MANISKILL_EORT_START_SEED:-${split_seed_default}}
+MAX_ATTEMPTS=${MANISKILL_EORT_MAX_ATTEMPTS:-$((NUM_TRAJ * 5))}
 if (( NUM_TRAJ <= 0 || NUM_TRAJ >= SEED_BLOCK_SIZE )); then
   echo "NUM_TRAJ must be positive and smaller than MANISKILL_EORT_SEED_BLOCK_SIZE" >&2
+  exit 2
+fi
+if (( MAX_ATTEMPTS < NUM_TRAJ || MAX_ATTEMPTS >= SEED_BLOCK_SIZE )); then
+  echo "MANISKILL_EORT_MAX_ATTEMPTS must be >= NUM_TRAJ and smaller than the seed block" >&2
   exit 2
 fi
 if [[ -n "${MANISKILL_EORT_CUDA_VISIBLE_DEVICES:-}" ]]; then
@@ -69,8 +74,8 @@ variant_env() {
 }
 
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
-  printf '{"collection_root":"%s","task":"%s","split":"%s","variants":"%s","num_traj_per_variant":%s,"start_seed":%s,"seed_block_size":%s,"exports":"%s","action_source":"%s","future_targets":%s,"controller_replay_envs":%s,"gpu":"%s"}\n' \
-    "${COLLECTION_ROOT}" "${TASK}" "${SPLIT}" "${VARIANTS}" "${NUM_TRAJ}" "${START_SEED}" "${SEED_BLOCK_SIZE}" "${EXPORTS}" "${ACTION_SOURCE}" "${INCLUDE_FUTURE_TARGETS}" "${CONTROLLER_REPLAY_ENVS}" "${CUDA_VISIBLE_DEVICES:-unset}"
+  printf '{"collection_root":"%s","task":"%s","split":"%s","variants":"%s","num_traj_per_variant":%s,"max_attempts_per_variant":%s,"start_seed":%s,"seed_block_size":%s,"exports":"%s","action_source":"%s","future_targets":%s,"controller_replay_envs":%s,"gpu":"%s"}\n' \
+    "${COLLECTION_ROOT}" "${TASK}" "${SPLIT}" "${VARIANTS}" "${NUM_TRAJ}" "${MAX_ATTEMPTS}" "${START_SEED}" "${SEED_BLOCK_SIZE}" "${EXPORTS}" "${ACTION_SOURCE}" "${INCLUDE_FUTURE_TARGETS}" "${CONTROLLER_REPLAY_ENVS}" "${CUDA_VISIBLE_DEVICES:-unset}"
   exit 0
 fi
 if [[ -z "${MANISKILL_EORT_CUDA_VISIBLE_DEVICES:-}" ]]; then
@@ -106,7 +111,7 @@ for index in "${!variants[@]}"; do
   cd "${PROJECT_ROOT}"
   "${PYTHON}" -m mani_skill.examples.motionplanning.panda.run \
     --env-id "${env_id}" --num-traj "${NUM_TRAJ}" --only-count-success \
-    --start-seed "${seed}" --save-seed-manifest \
+    --start-seed "${seed}" --max-attempts "${MAX_ATTEMPTS}" --save-seed-manifest \
     --obs-mode state_dict+rgb+depth+segmentation --sim-backend cpu \
     --record-dir "${raw_root}" --traj-name "${trajectory_name}"
   "${PYTHON}" -m mani_skill.trajectory.replay_trajectory \
