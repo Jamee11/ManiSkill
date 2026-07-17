@@ -37,6 +37,23 @@ def _valid_positive_range(value: object, width: int) -> bool:
     )
 
 
+def _parse_expected_counts(value: str) -> dict[str, int]:
+    if not value:
+        return {}
+    result: dict[str, int] = {}
+    for item in value.split(","):
+        split, separator, count = item.partition("=")
+        if separator != "=" or split not in {"train", "val", "test"} or split in result:
+            raise ValueError(f"Invalid expected count: {item!r}")
+        try:
+            result[split] = int(count)
+        except ValueError as error:
+            raise ValueError(f"Invalid expected count: {item!r}") from error
+        if result[split] <= 0:
+            raise ValueError(f"Expected count must be positive: {item!r}")
+    return result
+
+
 def audit_collection(
     root: Path,
     task: str,
@@ -45,6 +62,7 @@ def audit_collection(
     action_source: str,
     exports: list[str],
     future_targets: bool = False,
+    expected_counts: dict[str, int] | None = None,
 ) -> dict:
     unknown_exports = set(exports) - EXPORTS.keys()
     if unknown_exports:
@@ -60,7 +78,8 @@ def audit_collection(
     owners: dict[int, str] = {}
     source_commits: set[str] = set()
     runtimes: dict[str, dict] = {}
-    report = {"root": str(root), "task": task, "action_source": action_source, "future_targets": future_targets, "shards": []}
+    expected_counts = expected_counts or {}
+    report = {"root": str(root), "task": task, "action_source": action_source, "future_targets": future_targets, "expected_episodes_per_variant": expected_counts, "shards": []}
 
     for split in splits:
         for variant in variants:
@@ -73,6 +92,10 @@ def audit_collection(
             seed_rows = _json(seed_path).get("saved_trajectory_seeds", [])
             if not seed_rows or not all(row.get("success") is True for row in seed_rows):
                 raise ValueError(f"{name} has missing or unsuccessful seeds")
+            if split in expected_counts and len(seed_rows) != expected_counts[split]:
+                raise ValueError(
+                    f"{name} has {len(seed_rows)} episodes, expected {expected_counts[split]}"
+                )
             metadata_path = seed_path.with_name(seed_path.name.removesuffix(".seed_manifest.json") + ".json")
             metadata = _json(metadata_path)
             runtime = _json(shard / "runtime_manifest.json")
@@ -199,6 +222,7 @@ def main() -> None:
     parser.add_argument("--action-source", choices=("panda_pd_ee_delta_pose", "metric_task_delta_pose"), default="panda_pd_ee_delta_pose")
     parser.add_argument("--exports", default="oracle,segdepth_proxy,track_corrupt")
     parser.add_argument("--future-targets", action="store_true")
+    parser.add_argument("--expected-counts", default="", help="Optional per-variant contract, e.g. train=500,val=100,test=200")
     args = parser.parse_args()
     print(json.dumps(audit_collection(
         args.root,
@@ -208,6 +232,7 @@ def main() -> None:
         args.action_source,
         args.exports.split(","),
         args.future_targets,
+        _parse_expected_counts(args.expected_counts),
     ), indent=2))
 
 

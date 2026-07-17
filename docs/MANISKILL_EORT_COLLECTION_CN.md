@@ -31,6 +31,8 @@ v2 不替换 v1，而是使用独立的 `PushCubeEORT-v1` 和输出目录。它�
 - `object_friction` `(1,2)`：`[static_friction,dynamic_friction]`，raw HDF5 为 `(T+1,2)`；同样只作物理参数/QA 标签，不进入 policy。旧数据可回填 ManiSkill 默认 `[0.3,0.3]`，正式 audit 只接受显式 raw provenance；
 
 每个 shard 的 `summary.json.object_physics_qa` 会按 episode 报告 extent、mass、friction 的 `[min,median,max]`，production audit 强制这些范围为正、有序且 episode 数匹配。外机批量结束后必须先看这里，不能只凭配置文件认定随机化范围已经覆盖。
+
+正式训练前的 audit 还应传入矩阵数量契约：visual 使用 `--expected-counts train=500,val=100,test=200`，独立 geometry test 使用 `--expected-counts test=200`。该参数默认留空，便于 1–3 条 smoke 做链路诊断；只有显式数量契约通过的 root 才能进入 production training。
 - `robot_obj_contact_force` `(T,3)`、`robot_obj_contact_force_norm` `(T,1)`、`physical_contact` `(T,1)`、`push_interaction_phase` `(T,1)`；`physical_contact` 使用 Panda hand/左右 finger 的 force norm 之和，避免向量抵消；
 - `object_linear_velocity` / `object_angular_velocity` `(T,3)`；
 - `ee_to_object_rotvec` `(T,3)`，由正确的 wxyz 相对旋转得到；

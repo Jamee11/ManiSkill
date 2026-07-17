@@ -1,5 +1,11 @@
 # Experiment Results and Analysis
 
+## 2026-07-17 02:47 UTC - Production episode-count gate
+
+- Added an optional read-only audit contract for successful episodes per variant/split. It does not change collector defaults or invalidate deliberately small smoke checks unless explicitly enabled.
+- Focused tests pass: `train=500,val=100,test=200` parses exactly, duplicate split declarations fail, and a valid one-episode fixture is rejected as partial when `train=500` is required.
+- DiT4DiT external preflight will supply the production matrix values; count sufficiency is still not evidence of behavioral diversity or policy quality.
+
 ## 2026-07-17 02:41 UTC - Full external collection matrix dry-run
 
 - The print-only production launcher emitted eight jobs: visual train/val/test plus geometry held-out test for both Push and Pick. Planned successful episode count is 5,200; no simulator or renderer was started.

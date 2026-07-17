@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.eort.audit_large_collection import audit_collection
+from scripts.eort.audit_large_collection import _parse_expected_counts, audit_collection
 
 
 def _write(path: Path, value) -> None:
@@ -53,6 +53,19 @@ def _collection(root: Path, split: str, seed: int, commit: str = "abc123", torch
 
 
 class CollectionAuditTest(unittest.TestCase):
+    def test_expected_episode_contract_rejects_partial_shards(self):
+        self.assertEqual(_parse_expected_counts("train=500,val=100,test=200"), {"train": 500, "val": 100, "test": 200})
+        with self.assertRaisesRegex(ValueError, "Invalid expected count"):
+            _parse_expected_counts("train=1,train=2")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _collection(root, "train", 10)
+            with self.assertRaisesRegex(ValueError, "has 1 episodes, expected 500"):
+                audit_collection(
+                    root, "push_cube", ["train"], ["fixed"], "metric_task_delta_pose", ["oracle"],
+                    expected_counts={"train": 500},
+                )
+
     def test_accepts_complete_collection_and_rejects_seed_leakage(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

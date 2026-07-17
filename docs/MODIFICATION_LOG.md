@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-17 02:47 UTC - Enforce planned episode counts before training
+
+- Reason: Provenance and seed checks alone allow a one-episode smoke shard to pass, which could be mistaken for the planned 500/100/200-per-variant production collection and scheduled for formal training.
+- Change: The read-only collection audit accepts an optional `--expected-counts train=500,val=100,test=200` contract and rejects any requested split/variant whose successful seed count differs. The default remains unset for ad hoc smokes; no collection, data or model behavior changes.
+- Verification: Focused tests accept the existing complete fixture, validate parsing, reject duplicate count declarations, and reject a one-episode train shard when 500 are required. No data or training was started.
+
 ## 2026-07-17 02:41 UTC - Add a safe production collection matrix launcher
 
 - Reason: The verified collector handled one task/split shard at a time. Manually scheduling Push/Pick × train/val/test plus a separate geometry test could omit jobs or reuse the test seed block, and could accidentally fall back to Panda-specific actions or omit future-motion targets.
