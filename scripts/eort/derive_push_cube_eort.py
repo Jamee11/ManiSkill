@@ -20,6 +20,11 @@ except ModuleNotFoundError:  # Direct `python scripts/eort/derive_push_cube_eort
 SCHEMA_VERSION = "maniskill_push_cube_eort_oracle_v1"
 OBJECTCENTRIC_V2_SCHEMA_VERSION = "maniskill_push_cube_objectcentric_oracle_v2"
 PICK_CUBE_OBJECTCENTRIC_V2_SCHEMA_VERSION = "maniskill_pick_cube_objectcentric_oracle_v2"
+OBJECTCENTRIC_V3_SCHEMA_VERSIONS = {
+    "PushCubeEORTSim2Real-v1": "maniskill_push_cube_objectcentric_robot_base_oracle_v3",
+    "PickCubeEORTSim2Real-v1": "maniskill_pick_cube_objectcentric_robot_base_oracle_v3",
+}
+OBJECTCENTRIC_V3_CAMERAS = ("front_camera", "right_shoulder_camera", "hand_camera")
 OBJECTCENTRIC_V2_ENV_ID = "PushCubeEORT-v1"
 OBJECTCENTRIC_V2_ENV_IDS = (
     OBJECTCENTRIC_V2_ENV_ID,
@@ -62,6 +67,14 @@ OBJECTCENTRIC_V2_TASK_SPECS = {
     "PickCubeEORTCameraRand-v1": PICK_CUBE_TASK_SPEC,
     "PickCubeEORTOccluded-v1": PICK_CUBE_TASK_SPEC,
     "PickCubeEORTGeometryRand-v1": PICK_CUBE_TASK_SPEC,
+    # v3 reuses the measured-contact/phase derivation before adding base-frame
+    # fields and three-view QA.
+    "PushCubeEORTSim2Real-v1": PUSH_CUBE_TASK_SPEC,
+    "PickCubeEORTSim2Real-v1": PICK_CUBE_TASK_SPEC,
+}
+OBJECTCENTRIC_V3_TASK_SPECS = {
+    "PushCubeEORTSim2Real-v1": PUSH_CUBE_TASK_SPEC,
+    "PickCubeEORTSim2Real-v1": PICK_CUBE_TASK_SPEC,
 }
 
 
@@ -208,6 +221,40 @@ def _relative_rotation_rotvec(
     nonzero = sin_half > 1e-6
     axis[nonzero] = relative[nonzero, 1:] / sin_half[nonzero, None]
     return (axis * angle[:, None]).astype(np.float32)
+
+
+def _rotate_world_to_base(vectors: np.ndarray, base_wxyz: np.ndarray) -> np.ndarray:
+    """Express world-axis vectors in the robot-base axes."""
+    base = _normalized_quaternion_wxyz(base_wxyz, "robot base quaternion")
+    w, xyz = base[:, :1], base[:, 1:]
+    return (
+        vectors
+        + 2 * np.cross(xyz, np.cross(xyz, vectors))
+        - 2 * w * np.cross(xyz, vectors)
+    ).astype(np.float32)
+
+
+def _world_pose_to_base(world_pose_wxyz: np.ndarray, base_pose_wxyz: np.ndarray) -> np.ndarray:
+    """Return ``inverse(base_pose) * world_pose`` in ManiSkill wxyz format."""
+    position = _rotate_world_to_base(
+        world_pose_wxyz[:, :3] - base_pose_wxyz[:, :3], base_pose_wxyz[:, 3:]
+    )
+    bw, bx, by, bz = _normalized_quaternion_wxyz(
+        base_pose_wxyz[:, 3:], "robot base quaternion"
+    ).T
+    ww, wx, wy, wz = _normalized_quaternion_wxyz(
+        world_pose_wxyz[:, 3:], "world pose quaternion"
+    ).T
+    quaternion = np.stack(
+        (
+            bw * ww + bx * wx + by * wy + bz * wz,
+            bw * wx - bx * ww - by * wz + bz * wy,
+            bw * wy + bx * wz - by * ww - bz * wx,
+            bw * wz - bx * wy + by * wx - bz * ww,
+        ),
+        axis=1,
+    )
+    return np.concatenate((position, quaternion), axis=1).astype(np.float32)
 
 
 def _local_eef_transition(tcp_pose_wxyz: np.ndarray, gripper_action: np.ndarray) -> np.ndarray:
@@ -494,11 +541,111 @@ def derive_trajectory_objectcentric_v2(
     return arrays
 
 
+def derive_trajectory_objectcentric_v3(
+    group: h5py.Group,
+    cameras: tuple[str, ...],
+    *,
+    task: str,
+    control_mode: str,
+    future_horizons: tuple[int, ...],
+    contact_force_threshold: float,
+) -> dict[str, np.ndarray]:
+    """Add robot-base canonical fields and per-camera oracle QA to v2 labels."""
+    if tuple(cameras) != OBJECTCENTRIC_V3_CAMERAS:
+        raise ValueError(f"objectcentric_v3 requires cameras {OBJECTCENTRIC_V3_CAMERAS}")
+    arrays = derive_trajectory_objectcentric_v2(
+        group,
+        cameras[0],
+        task=task,
+        control_mode=control_mode,
+        future_horizons=future_horizons,
+        contact_force_threshold=contact_force_threshold,
+    )
+    steps = len(arrays["action"])
+    base_pose = _finite_array(group, "obs/extra/robot_base_pose", steps, 7)
+    base_quaternion = base_pose[:-1, 3:]
+    arrays.update(
+        {
+            "robot_base_pose_wxyz": base_pose[:-1],
+            "tcp_pose_base_wxyz": _world_pose_to_base(arrays["tcp_pose_wxyz"], base_pose[:-1]),
+            "object_pose_base_wxyz": _world_pose_to_base(arrays["object_pose_wxyz"], base_pose[:-1]),
+            "goal_pos_base": _rotate_world_to_base(
+                arrays["goal_pos"] - base_pose[:-1, :3], base_quaternion
+            ),
+            "ee_to_object_base": _rotate_world_to_base(arrays["ee_to_object"], base_quaternion),
+            "object_to_goal_base": _rotate_world_to_base(arrays["object_to_goal"], base_quaternion),
+            "ee_to_object_rotvec_base": _rotate_world_to_base(
+                arrays["ee_to_object_rotvec"], base_quaternion
+            ),
+            "object_linear_velocity_base": _rotate_world_to_base(
+                arrays["object_linear_velocity"], base_quaternion
+            ),
+            "object_angular_velocity_base": _rotate_world_to_base(
+                arrays["object_angular_velocity"], base_quaternion
+            ),
+            "robot_obj_contact_force_base": _rotate_world_to_base(
+                arrays["robot_obj_contact_force"], base_quaternion
+            ),
+        }
+    )
+    future_base_quaternion = np.repeat(
+        base_quaternion[:, None, :], arrays["object_future_delta_pos"].shape[1], axis=1
+    ).reshape(-1, 4)
+    arrays["object_future_delta_pos_base"] = _rotate_world_to_base(
+        arrays["object_future_delta_pos"].reshape(-1, 3), future_base_quaternion
+    ).reshape(arrays["object_future_delta_pos"].shape)
+    arrays["object_future_delta_rotvec_base"] = _rotate_world_to_base(
+        arrays["object_future_delta_rotvec"].reshape(-1, 3), future_base_quaternion
+    ).reshape(arrays["object_future_delta_rotvec"].shape)
+    if "metric_task_delta_pose_command" in arrays:
+        # The controller source is root translation + root-aligned rotation, so
+        # no numeric rotation is required here; v3 fixes the misleading name.
+        arrays["metric_robot_base_delta_pose_command"] = arrays[
+            "metric_task_delta_pose_command"
+        ].copy()
+
+    object_id = int(arrays["object_segmentation_id"][0])
+    goal_id = int(arrays["goal_segmentation_id"][0])
+    for camera in cameras:
+        _validate_camera_streams(group, camera, steps)
+        for role, actor_id, target_base in (
+            ("object", object_id, arrays["object_pose_base_wxyz"][:, :3]),
+            ("goal", goal_id, arrays["goal_pos_base"]),
+        ):
+            pixels, fraction, bbox, centroid_uv = _segmentation_visibility(
+                group, camera, steps, actor_id
+            )
+            centroid_world, valid = _segdepth_centroid_world(group, camera, steps, actor_id)
+            centroid_base = _rotate_world_to_base(
+                centroid_world - base_pose[:-1, :3], base_quaternion
+            )
+            prefix = f"{camera}_{role}"
+            arrays.update(
+                {
+                    f"{prefix}_mask_pixels": pixels,
+                    f"{prefix}_visibility_fraction": fraction,
+                    f"{prefix}_visible": pixels > 0,
+                    f"{prefix}_bbox_xyxy": bbox,
+                    f"{prefix}_mask_centroid_uv": centroid_uv,
+                    f"{prefix}_segdepth_centroid_world": centroid_world,
+                    f"{prefix}_segdepth_centroid_base": centroid_base,
+                    f"{prefix}_segdepth_valid": valid,
+                    f"{prefix}_segdepth_centroid_error": np.where(
+                        valid,
+                        np.linalg.norm(centroid_base - target_base, axis=1, keepdims=True),
+                        0.0,
+                    ).astype(np.float32),
+                }
+            )
+    return arrays
+
+
 def derive_dataset(
     trajectory_path: str | Path,
     output_dir: str | Path,
     *,
     camera: str = "base_camera",
+    cameras: tuple[str, ...] = OBJECTCENTRIC_V3_CAMERAS,
     schema: str = "v1",
     future_horizons: tuple[int, ...] = DEFAULT_FUTURE_HORIZONS,
     contact_force_threshold: float = 1e-6,
@@ -514,29 +661,40 @@ def derive_dataset(
             raise ValueError(f"v1 requires PushCube-v1 metadata, got {task!r}")
         schema_version = SCHEMA_VERSION
         derive = lambda group: derive_trajectory(group, camera)
-    elif schema == "objectcentric_v2":
-        if task not in OBJECTCENTRIC_V2_ENV_IDS:
+    elif schema in ("objectcentric_v2", "objectcentric_v3"):
+        task_specs = (
+            OBJECTCENTRIC_V2_TASK_SPECS
+            if schema == "objectcentric_v2"
+            else OBJECTCENTRIC_V3_TASK_SPECS
+        )
+        valid_env_ids = tuple(task_specs)
+        if task not in valid_env_ids:
             raise ValueError(
-                f"objectcentric_v2 requires one of {OBJECTCENTRIC_V2_ENV_IDS} metadata, got {task!r}"
+                f"{schema} requires one of {valid_env_ids} metadata, got {task!r}"
             )
         if contact_force_threshold < 0:
             raise ValueError("contact_force_threshold must be non-negative")
-        task_spec = OBJECTCENTRIC_V2_TASK_SPECS[task]
+        task_spec = task_specs[task]
         control_mode = metadata.get("env_info", {}).get("env_kwargs", {}).get("control_mode")
         if control_mode not in ("pd_joint_pos", "pd_ee_delta_pose"):
             raise ValueError(
-                "objectcentric_v2 requires metadata control_mode pd_joint_pos or pd_ee_delta_pose, "
+                f"{schema} requires metadata control_mode pd_joint_pos or pd_ee_delta_pose, "
                 f"got {control_mode!r}"
             )
-        schema_version = task_spec["schema_version"]
-        derive = lambda group: derive_trajectory_objectcentric_v2(
-            group,
-            camera,
-            task=task,
-            control_mode=control_mode,
-            future_horizons=future_horizons,
-            contact_force_threshold=contact_force_threshold,
-        )
+        if schema == "objectcentric_v2":
+            schema_version = task_spec["schema_version"]
+            derive = lambda group: derive_trajectory_objectcentric_v2(
+                group, camera, task=task, control_mode=control_mode,
+                future_horizons=future_horizons,
+                contact_force_threshold=contact_force_threshold,
+            )
+        else:
+            schema_version = OBJECTCENTRIC_V3_SCHEMA_VERSIONS[task]
+            derive = lambda group: derive_trajectory_objectcentric_v3(
+                group, cameras, task=task, control_mode=control_mode,
+                future_horizons=future_horizons,
+                contact_force_threshold=contact_force_threshold,
+            )
     else:
         raise ValueError(f"Unsupported schema: {schema!r}")
 
@@ -572,15 +730,17 @@ def derive_dataset(
                 "oracle": True,
                 "source_h5": str(trajectory_path),
                 "source_trajectory": trajectory_id,
-                "camera": camera,
-                "source_control_mode": control_mode if schema == "objectcentric_v2" else None,
+                "camera": camera if schema != "objectcentric_v3" else None,
+                "cameras": list(cameras) if schema == "objectcentric_v3" else None,
+                "canonical_frame": "robot_base" if schema == "objectcentric_v3" else "world",
+                "source_control_mode": control_mode if schema.startswith("objectcentric_") else None,
                 "quaternion_convention": "wxyz",
                 "num_steps": int(len(arrays["action"])),
                 "fields": {name: list(value.shape) for name, value in arrays.items()},
                 "output": npz_path.name,
             }
         )
-        if schema == "objectcentric_v2":
+        if schema.startswith("objectcentric_"):
             records[-1].update(
                 {
                     "physical_contact": {
@@ -612,6 +772,13 @@ def derive_dataset(
                     "controller_command": True,
                     "robot_specific_scaling": False,
                 }
+                if schema == "objectcentric_v3":
+                    records[-1]["metric_robot_base_delta_pose_command"] = {
+                        "source": "exact decode of Panda root-aligned pd_ee_delta_pose action",
+                        "layout": "delta_xyz_m + delta_rotvec_rad + gripper_open_fraction",
+                        "frame": "robot_base",
+                        "controller_command": True,
+                    }
             records[-1]["object_extent"] = {
                 "source": extent_sources[trajectory_id],
                 "layout": "full xyz side lengths in meters",
@@ -657,11 +824,13 @@ def derive_dataset(
         "task": task,
         "source_h5": str(trajectory_path),
         "source_metadata": str(trajectory_path.with_suffix(".json")),
-        "camera": camera,
+        "camera": camera if schema != "objectcentric_v3" else None,
+        "cameras": list(cameras) if schema == "objectcentric_v3" else None,
+        "canonical_frame": "robot_base" if schema == "objectcentric_v3" else "world",
         "trajectories": len(records),
         "steps": sum(record["num_steps"] for record in records),
     }
-    if schema == "objectcentric_v2":
+    if schema.startswith("objectcentric_"):
         summary.update(
             {
                 "physical_contact_source": "robot_obj_contact_force_norm",
@@ -669,7 +838,8 @@ def derive_dataset(
                 "contact_force_threshold": contact_force_threshold,
                 "future_horizons_steps": list(future_horizons),
                 "segmentation_visibility": all(
-                    "object_visible" in arrays for _, arrays in outputs
+                    ("front_camera_object_visible" if schema == "objectcentric_v3" else "object_visible") in arrays
+                    for _, arrays in outputs
                 ),
             }
         )
@@ -692,7 +862,7 @@ def derive_dataset(
                 values.max(axis=0).tolist(),
             ]
         summary["object_physics_qa"] = physics_qa
-        if summary["segmentation_visibility"]:
+        if summary["segmentation_visibility"] and schema == "objectcentric_v2":
             object_visible = np.concatenate([arrays["object_visible"][:, 0] for _, arrays in outputs])
             goal_visible = np.concatenate([arrays["goal_visible"][:, 0] for _, arrays in outputs])
             object_depth_valid = np.concatenate([arrays["object_segdepth_valid"][:, 0] for _, arrays in outputs])
@@ -714,6 +884,28 @@ def derive_dataset(
                     sum(arrays["occluder_active"].sum() for _, arrays in outputs)
                 )
             summary["visibility_qa"] = visibility_qa
+        elif summary["segmentation_visibility"]:
+            summary["visibility_qa"] = {}
+            for camera_uid in cameras:
+                object_visible = np.concatenate(
+                    [arrays[f"{camera_uid}_object_visible"][:, 0] for _, arrays in outputs]
+                )
+                goal_visible = np.concatenate(
+                    [arrays[f"{camera_uid}_goal_visible"][:, 0] for _, arrays in outputs]
+                )
+                object_valid = np.concatenate(
+                    [arrays[f"{camera_uid}_object_segdepth_valid"][:, 0] for _, arrays in outputs]
+                )
+                goal_valid = np.concatenate(
+                    [arrays[f"{camera_uid}_goal_segdepth_valid"][:, 0] for _, arrays in outputs]
+                )
+                summary["visibility_qa"][camera_uid] = {
+                    "total_steps": summary["steps"],
+                    "object_visible_steps": int(object_visible.sum()),
+                    "goal_visible_steps": int(goal_visible.sum()),
+                    "relational_visible_steps": int((object_visible & goal_visible).sum()),
+                    "relational_segdepth_valid_steps": int((object_valid & goal_valid).sum()),
+                }
     (output_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -726,7 +918,10 @@ def main() -> None:
     parser.add_argument("--traj-path", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--camera", default="base_camera")
-    parser.add_argument("--schema", choices=("v1", "objectcentric_v2"), default="v1")
+    parser.add_argument(
+        "--schema", choices=("v1", "objectcentric_v2", "objectcentric_v3"), default="v1"
+    )
+    parser.add_argument("--cameras", nargs="+", default=OBJECTCENTRIC_V3_CAMERAS)
     parser.add_argument(
         "--future-horizons",
         type=int,
@@ -742,6 +937,7 @@ def main() -> None:
                 args.traj_path,
                 args.output_dir,
                 camera=args.camera,
+                cameras=tuple(args.cameras),
                 schema=args.schema,
                 future_horizons=tuple(args.future_horizons),
                 contact_force_threshold=args.contact_force_threshold,

@@ -16,6 +16,7 @@ from sapien.physx import PhysxMaterial
 from mani_skill.envs.tasks.tabletop.push_cube import PushCubeEnv
 from mani_skill.envs.tasks.tabletop.eort_visual_variants import (
     EORTCameraRandomizationMixin,
+    EORTSim2RealV3Mixin,
     EORTVisualOcclusionMixin,
 )
 from mani_skill.utils.registration import register_env
@@ -81,6 +82,13 @@ class PushCubeEORTOccludedEnv(EORTVisualOcclusionMixin, PushCubeEORTEnv):
     """EORT PushCube with a visual-only static occluder in half of episodes."""
 
     pass
+
+
+@register_env("PushCubeEORTSim2Real-v1", max_episode_steps=50)
+class PushCubeEORTSim2RealEnv(EORTSim2RealV3Mixin, PushCubeEORTEnv):
+    """Three-view, robot-base-frame-ready EORT production environment."""
+
+    SUPPORTED_ROBOTS = ["panda_wristcam"]
 
 
 @register_env("PushCubeEORTGeometryRand-v1", max_episode_steps=50)

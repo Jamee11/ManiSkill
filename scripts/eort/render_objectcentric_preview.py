@@ -20,28 +20,30 @@ def _phase_key(labels: np.lib.npyio.NpzFile) -> str | None:
     return next((key for key in labels.files if key.endswith("interaction_phase")), None)
 
 
-def annotate(frame_rgb: np.ndarray, labels: np.lib.npyio.NpzFile, step: int) -> np.ndarray:
+def annotate(frame_rgb: np.ndarray, labels: np.lib.npyio.NpzFile, step: int, *, prefix: str = "", title: str = "") -> np.ndarray:
     """Draw only derived labels; raw segmentation IDs are intentionally absent."""
     if frame_rgb.ndim != 3 or frame_rgb.shape[-1] != 3:
         raise ValueError(f"RGB frame must be (H,W,3), got {frame_rgb.shape}")
     output = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
     for role, color in (("object", OBJECT_COLOR), ("goal", GOAL_COLOR)):
-        bbox = np.asarray(labels[f"{role}_bbox_xyxy"][step], dtype=np.int32)
-        visible = bool(labels[f"{role}_visible"][step, 0])
+        bbox = np.asarray(labels[f"{prefix}{role}_bbox_xyxy"][step], dtype=np.int32)
+        visible = bool(labels[f"{prefix}{role}_visible"][step, 0])
         if visible:
             x0, y0, x1, y1 = bbox.tolist()
             cv2.rectangle(output, (x0, y0), (x1 - 1, y1 - 1), color, 1)
-            centroid = np.rint(labels[f"{role}_mask_centroid_uv"][step]).astype(int)
+            centroid = np.rint(labels[f"{prefix}{role}_mask_centroid_uv"][step]).astype(int)
             cv2.circle(output, tuple(centroid), 2, color, -1)
         cv2.putText(output, f"{role}:{int(visible)}", (4, 18 if role == "object" else 36), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1, cv2.LINE_AA)
     phase_key = _phase_key(labels)
     phase = int(labels[phase_key][step, 0]) if phase_key else -1
     contact = int(labels["physical_contact"][step, 0]) if "physical_contact" in labels.files else -1
     cv2.putText(output, f"t={step} phase={phase} contact={contact}", (4, output.shape[0] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1, cv2.LINE_AA)
+    if title:
+        cv2.putText(output, title, (output.shape[1] - 116, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
     return output
 
 
-def render_preview(trajectory_path: Path, derived_dir: Path, output_path: Path, *, camera: str, max_episodes: int, fps: int) -> dict:
+def render_preview(trajectory_path: Path, derived_dir: Path, output_path: Path, *, cameras: tuple[str, ...], max_episodes: int, fps: int) -> dict:
     if output_path.exists():
         raise FileExistsError(f"Refusing to overwrite preview: {output_path}")
     records = [json.loads(line) for line in (derived_dir / "manifest.jsonl").read_text().splitlines() if line]
@@ -56,9 +58,16 @@ def render_preview(trajectory_path: Path, derived_dir: Path, output_path: Path, 
         for record in records:
             trajectory = record["source_trajectory"]
             with np.load(derived_dir / record["output"]) as labels:
-                rgb = raw[trajectory][f"obs/sensor_data/{camera}/rgb"][: len(labels["action"])]
-                for step, frame in enumerate(rgb):
-                    annotated = annotate(frame, labels, step)
+                videos = {
+                    camera: raw[trajectory][f"obs/sensor_data/{camera}/rgb"][: len(labels["action"])]
+                    for camera in cameras
+                }
+                for step in range(len(labels["action"])):
+                    views = []
+                    for camera, rgb in videos.items():
+                        prefix = f"{camera}_" if f"{camera}_object_visible" in labels else ""
+                        views.append(annotate(rgb[step], labels, step, prefix=prefix, title=camera))
+                    annotated = np.concatenate(views, axis=1)
                     if writer is None:
                         height, width = annotated.shape[:2]
                         writer = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
@@ -69,7 +78,7 @@ def render_preview(trajectory_path: Path, derived_dir: Path, output_path: Path, 
             selected.append(trajectory)
     assert writer is not None
     writer.release()
-    summary = {"preview": str(output_path), "trajectory_path": str(trajectory_path), "derived_dir": str(derived_dir), "camera": camera, "episodes": selected, "frames": frames, "fps": fps, "overlay": "object/goal bbox+centroid+visibility, phase and force-contact labels"}
+    summary = {"preview": str(output_path), "trajectory_path": str(trajectory_path), "derived_dir": str(derived_dir), "cameras": list(cameras), "episodes": selected, "frames": frames, "fps": fps, "overlay": "tiled object/goal bbox+centroid+visibility, phase and force-contact labels"}
     output_path.with_suffix(".json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary
 
@@ -80,6 +89,7 @@ def main() -> None:
     parser.add_argument("--derived-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--camera", default="base_camera")
+    parser.add_argument("--cameras", nargs="+")
     parser.add_argument("--max-episodes", type=int, default=3)
     parser.add_argument("--fps", type=int, default=20)
     args = parser.parse_args()
@@ -89,7 +99,7 @@ def main() -> None:
                 args.trajectory_path,
                 args.derived_dir,
                 args.output,
-                camera=args.camera,
+                cameras=tuple(args.cameras or (args.camera,)),
                 max_episodes=args.max_episodes,
                 fps=args.fps,
             ),

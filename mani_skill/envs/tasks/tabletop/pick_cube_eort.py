@@ -12,6 +12,7 @@ from sapien.physx import PhysxMaterial
 from mani_skill.envs.tasks.tabletop.pick_cube import PickCubeEnv
 from mani_skill.envs.tasks.tabletop.eort_visual_variants import (
     EORTCameraRandomizationMixin,
+    EORTSim2RealV3Mixin,
     EORTVisualOcclusionMixin,
 )
 from mani_skill.utils.building import actors
@@ -82,6 +83,13 @@ class PickCubeEORTCameraRandEnv(EORTCameraRandomizationMixin, PickCubeEORTEnv):
 @register_env("PickCubeEORTOccluded-v1", max_episode_steps=50)
 class PickCubeEORTOccludedEnv(EORTVisualOcclusionMixin, PickCubeEORTEnv):
     """PickCube EORT with a visual-only static occluder in half of episodes."""
+
+
+@register_env("PickCubeEORTSim2Real-v1", max_episode_steps=50)
+class PickCubeEORTSim2RealEnv(EORTSim2RealV3Mixin, PickCubeEORTEnv):
+    """Three-view, robot-base-frame-ready EORT production environment."""
+
+    SUPPORTED_ROBOTS = ["panda_wristcam"]
 
 
 @register_env("PickCubeEORTGeometryRand-v1", max_episode_steps=50)

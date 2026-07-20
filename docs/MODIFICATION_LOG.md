@@ -339,3 +339,10 @@
 - Reason: Collection shards already carried seed, sidecar, visibility and LeRobot metadata, but no single command proved that all train/val/test inputs were complete, disjoint and action-compatible before an expensive training run.
 - Change: Added one read-only stdlib audit that checks successful unique simulator seeds, seed-to-sidecar identity/count, verified action provenance, relational visibility QA, and LeRobot episode/condition/action contracts across requested splits and variants. It does not inspect or change model architecture, raw data or training code.
 - Verification: The focused unittest passed, including intentional train/val seed leakage rejection. The real three-variant Push metric smoke passed with 3 unique seeds, 3 episodes and 202 steps. No training was launched.
+
+## 2026-07-20 14:34:08 UTC — EORT v3 robot-base 三视角 Sim2Real 数据框架
+
+- 原因：world-frame policy state/condition 无法形成清晰真机合同；现有单相机 v2 缺少 front/right-shoulder/wrist 对齐、真实标定中心随机化和三视角 visibility QA；人工挡板也不应继续作为 production train 分支。
+- 精确变更：新增而不替换 `PushCubeEORTSim2Real-v1`/`PickCubeEORTSim2Real-v1`，默认 `panda_wristcam`，三路 256×256 RGB-D；front 使用 2026-06-17 `344522302193` 标定，right shoulder 使用 `344422300343` 标定候选，wrist 显式标注 simulator nominal。新增 episode-static ±1 cm/±2° 相机扰动、有限桌色/光照随机化；v3 raw 记录 robot-base pose/randomization。sidecar 保留 world GT 并新增 base-frame TCP/object/goal/relation/velocity/force/future 与 metric controller action，逐相机导出 bbox/centroid/visibility/segdepth QA。新增 production shard/matrix、三视角 preview 和 fail-fast audit；旧 v2/occluded baseline 未删除或改写。
+- 验证：ManiSkill 10 个回归/坐标测试通过；GPU1 seed-1 native 1/1 success、controller replay 1/1 success、72 steps。三相机 raw 均为 RGB `(73,256,256,3)`、depth/segmentation `(73,256,256,1)`。v3 sidecar、768×256/72-frame overlay MP4、三视频 LeRobot、DiT4DiT sample `state(1,64)/action(8,7)/3×image(3,224,224)` 和 audit 均通过。首个 smoke 暴露桌面 z-fighting，覆盖层抬高 0.1 mm 后独立复采并目视确认已消失。
+- 边界：没有启动 tracker/policy 训练。真实 wrist intrinsics/hand-eye 未找到；right-shoulder 标定仍标 candidate；真实流 undistort→center-crop→resize 和时间同步未实机闭环，因此不得宣称三视角已完成 real calibration。
