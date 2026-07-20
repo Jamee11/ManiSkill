@@ -356,3 +356,10 @@
 - 数据/模型入口：sidecar schema 为 `maniskill_push_cube_objectcentric_robot_base_oracle_v3`；base pose/TCP/object/action 分别 `(72,7)`，goal/relation `(72,3)`，future position `(72,3,3)`。三视角 QA MP4 为 768×256、72 帧、20 FPS；LeRobot 有 front/right-shoulder/wrist 三个 256×256 MP4。真实 loader sample 为 `state(1,64)`、`action(8,7)`、三路 `(3,224,224)`。
 - 发现与修复：首个 seed-0 smoke 的桌面纯视觉覆盖层与 GLB 共面，preview 出现 z-fighting 条纹。将覆盖层顶面从 z=0 改为 z=0.1 mm（goal marker z=1 mm），随后 seed-1 独立复采，抽帧确认条纹消失。首个 smoke 仅保留诊断，不用于训练。
 - 结论：v3 数据/导出/loader 框架已打通，且人工遮挡可从 production 移除而不等于 visibility 全为正。仍不能从单条轨迹估计 tracker 分布；正式外机数据完成后必须运行 `audit_collection_v3.py`，并先训练/验证/freeze tracker，再导出 learned condition 训练 policy。
+
+## 2026-07-20 15:36:38 UTC — PushCube v3 目标位置与 H.264 smoke
+
+- 设置：仅将 `PushCubeEORTSim2Real-v1` 的 cube→goal 中心距离从 0.20 m 缩短为 0.15 m；GPU1、seed 2、三相机 256×256、CPU PhysX + GPU renderer。独立输出 `/remote-home/jinminghao/datasets/maniskill_eort_v3_goal_view_smoke_20260720`，不覆盖旧数据。GPU2 首次启动期间被其他任务占满并报 renderer `cannot create buffer`，未产生文件；改用 GPU1 后完成。
+- 结果：native motion planning 1/1 success，官方 `pd_ee_delta_pose` replay 1/1 success，`T=57`。初始 object/goal world X 为 `0.02294/0.17294 m`。front/right object+goal 都是 57/57 visible；hand object 57/57、goal 37/57。phase counts 为 approach/contact/moving/success=`41/0/7/9`。
+- 视频：QA MP4 为 H.264 High、yuv420p、768×256、20 FPS、57 帧，可由 VS Code/browser 常见解码器播放；首/中/末帧 contact sheet 同目录保存。
+- 分析：目标比旧 smoke 更远离相机，但新构图中 front goal bbox 首帧仍为 `[65,222,175,256]`，right 为 `[218,72,256,123]`，两者仍触及图像边界。因此 5 cm 是有效但不充分的改善，不能宣称目标已完整入镜。该 smoke 运行时工作树尚未提交，HDF5 metadata commit 仍记录旧 commit `56d518b`，只用于 QA；正式外机采集必须使用本次同步后的 commit，并以多 seed bbox 触边率和轨迹长度 audit 决定是否继续移动目标或调整任务工作区。

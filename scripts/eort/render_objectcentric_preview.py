@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
 import cv2
@@ -52,33 +55,46 @@ def render_preview(trajectory_path: Path, derived_dir: Path, output_path: Path, 
     records = records[:max_episodes]
     if not records:
         raise ValueError("No derived trajectories selected")
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        raise RuntimeError("ffmpeg is required to encode H.264 previews")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     writer, frames, selected = None, 0, []
-    with h5py.File(trajectory_path, "r") as raw:
-        for record in records:
-            trajectory = record["source_trajectory"]
-            with np.load(derived_dir / record["output"]) as labels:
-                videos = {
-                    camera: raw[trajectory][f"obs/sensor_data/{camera}/rgb"][: len(labels["action"])]
-                    for camera in cameras
-                }
-                for step in range(len(labels["action"])):
-                    views = []
-                    for camera, rgb in videos.items():
-                        prefix = f"{camera}_" if f"{camera}_object_visible" in labels else ""
-                        views.append(annotate(rgb[step], labels, step, prefix=prefix, title=camera))
-                    annotated = np.concatenate(views, axis=1)
-                    if writer is None:
-                        height, width = annotated.shape[:2]
-                        writer = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
-                        if not writer.isOpened():
-                            raise RuntimeError(f"Cannot open MP4 writer: {output_path}")
-                    writer.write(annotated)
-                    frames += 1
-            selected.append(trajectory)
-    assert writer is not None
-    writer.release()
-    summary = {"preview": str(output_path), "trajectory_path": str(trajectory_path), "derived_dir": str(derived_dir), "cameras": list(cameras), "episodes": selected, "frames": frames, "fps": fps, "overlay": "tiled object/goal bbox+centroid+visibility, phase and force-contact labels"}
+    with tempfile.TemporaryDirectory(prefix=".eort_preview_", dir=output_path.parent) as temporary_dir:
+        intermediate_path = Path(temporary_dir) / "preview_mp4v.mp4"
+        try:
+            with h5py.File(trajectory_path, "r") as raw:
+                for record in records:
+                    trajectory = record["source_trajectory"]
+                    with np.load(derived_dir / record["output"]) as labels:
+                        videos = {
+                            camera: raw[trajectory][f"obs/sensor_data/{camera}/rgb"][: len(labels["action"])]
+                            for camera in cameras
+                        }
+                        for step in range(len(labels["action"])):
+                            views = []
+                            for camera, rgb in videos.items():
+                                prefix = f"{camera}_" if f"{camera}_object_visible" in labels else ""
+                                views.append(annotate(rgb[step], labels, step, prefix=prefix, title=camera))
+                            annotated = np.concatenate(views, axis=1)
+                            if writer is None:
+                                height, width = annotated.shape[:2]
+                                writer = cv2.VideoWriter(str(intermediate_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
+                                if not writer.isOpened():
+                                    raise RuntimeError(f"Cannot open MP4 writer: {intermediate_path}")
+                            writer.write(annotated)
+                            frames += 1
+                    selected.append(trajectory)
+        finally:
+            if writer is not None:
+                writer.release()
+        if writer is None:
+            raise RuntimeError("No preview frames were written")
+        subprocess.run(
+            [ffmpeg, "-hide_banner", "-loglevel", "error", "-n", "-i", str(intermediate_path), "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output_path)],
+            check=True,
+        )
+    summary = {"preview": str(output_path), "trajectory_path": str(trajectory_path), "derived_dir": str(derived_dir), "cameras": list(cameras), "episodes": selected, "frames": frames, "fps": fps, "codec": "h264", "pixel_format": "yuv420p", "overlay": "tiled object/goal bbox+centroid+visibility, phase and force-contact labels"}
     output_path.with_suffix(".json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary
 

@@ -57,6 +57,7 @@ class PushCubeEnv(BaseEnv):
 
     # set some commonly used values
     goal_radius = 0.1
+    goal_center_offset_x = 0.2
     cube_half_size = 0.02
 
     def __init__(self, *args, robot_uids="panda", robot_init_qpos_noise=0.02, **kwargs):
@@ -166,7 +167,7 @@ class PushCubeEnv(BaseEnv):
 
             # here we set the location of that red/white target (the goal region). In particular here, we set the position to be in front of the cube
             # and we further rotate 90 degrees on the y-axis to make the target object face up
-            target_region_xyz = xyz + torch.tensor([0.1 + self.goal_radius, 0, 0])
+            target_region_xyz = xyz + torch.tensor([self.goal_center_offset_x, 0, 0])
             # set a little bit above 0 so the target is sitting on the table
             target_region_xyz[..., 2] = 1e-3
             self.goal_region.set_pose(

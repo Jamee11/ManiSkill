@@ -89,6 +89,7 @@ class PushCubeEORTSim2RealEnv(EORTSim2RealV3Mixin, PushCubeEORTEnv):
     """Three-view, robot-base-frame-ready EORT production environment."""
 
     SUPPORTED_ROBOTS = ["panda_wristcam"]
+    goal_center_offset_x = 0.15
 
 
 @register_env("PushCubeEORTGeometryRand-v1", max_episode_steps=50)

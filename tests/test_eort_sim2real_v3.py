@@ -41,10 +41,14 @@ class EORTSim2RealV3Test(unittest.TestCase):
     def test_v3_environments_are_additive_registrations(self):
         import gymnasium as gym
         import mani_skill.envs.tasks  # noqa: F401
+        from mani_skill.envs.tasks.tabletop.push_cube import PushCubeEnv
+        from mani_skill.envs.tasks.tabletop.push_cube_eort import PushCubeEORTSim2RealEnv
 
         self.assertEqual(gym.spec("PushCubeEORTSim2Real-v1").id, "PushCubeEORTSim2Real-v1")
         self.assertEqual(gym.spec("PickCubeEORTSim2Real-v1").id, "PickCubeEORTSim2Real-v1")
         self.assertEqual(gym.spec("PushCubeEORTOccluded-v1").id, "PushCubeEORTOccluded-v1")
+        self.assertEqual(PushCubeEnv.goal_center_offset_x, 0.2)
+        self.assertEqual(PushCubeEORTSim2RealEnv.goal_center_offset_x, 0.15)
 
 
 if __name__ == "__main__":

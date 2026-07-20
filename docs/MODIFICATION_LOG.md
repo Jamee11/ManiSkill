@@ -346,3 +346,9 @@
 - 精确变更：新增而不替换 `PushCubeEORTSim2Real-v1`/`PickCubeEORTSim2Real-v1`，默认 `panda_wristcam`，三路 256×256 RGB-D；front 使用 2026-06-17 `344522302193` 标定，right shoulder 使用 `344422300343` 标定候选，wrist 显式标注 simulator nominal。新增 episode-static ±1 cm/±2° 相机扰动、有限桌色/光照随机化；v3 raw 记录 robot-base pose/randomization。sidecar 保留 world GT 并新增 base-frame TCP/object/goal/relation/velocity/force/future 与 metric controller action，逐相机导出 bbox/centroid/visibility/segdepth QA。新增 production shard/matrix、三视角 preview 和 fail-fast audit；旧 v2/occluded baseline 未删除或改写。
 - 验证：ManiSkill 10 个回归/坐标测试通过；GPU1 seed-1 native 1/1 success、controller replay 1/1 success、72 steps。三相机 raw 均为 RGB `(73,256,256,3)`、depth/segmentation `(73,256,256,1)`。v3 sidecar、768×256/72-frame overlay MP4、三视频 LeRobot、DiT4DiT sample `state(1,64)/action(8,7)/3×image(3,224,224)` 和 audit 均通过。首个 smoke 暴露桌面 z-fighting，覆盖层抬高 0.1 mm 后独立复采并目视确认已消失。
 - 边界：没有启动 tracker/policy 训练。真实 wrist intrinsics/hand-eye 未找到；right-shoulder 标定仍标 candidate；真实流 undistort→center-crop→resize 和时间同步未实机闭环，因此不得宣称三视角已完成 real calibration。
+
+## 2026-07-20 15:36:38 UTC — PushCube v3 目标构图与 H.264 QA 预览
+
+- 原因：真实标定相机下，PushCube 目标区域过于靠近相机，front/right 画面大量裁切；QA 预览使用 `mp4v`，无法在部分 VS Code 环境直接播放。
+- 精确变更：为基础 `PushCubeEnv` 提取 `goal_center_offset_x=0.20 m`，保持原环境数值不变；仅 `PushCubeEORTSim2Real-v1` 覆盖为 `0.15 m`，将目标中心沿 X 轴向 Panda 移动 5 cm。预览工具继续复用现有 OpenCV overlay，最终用系统 FFmpeg 编码为 `H.264/yuv420p/+faststart`，未新增依赖；旧数据和旧视频均不覆盖。
+- 验证：seed 2 QA smoke 的 native motion planning 与 `pd_ee_delta_pose` controller replay 均为 1/1 success，`T=57`；front/right object+goal 均 57/57 visible，hand goal 37/57 visible。新 QA MP4 经 ffprobe 确认为 H.264、yuv420p、768×256、20 FPS。目视显示目标可见范围改善但 front 下缘和 right 右缘仍有裁切，因此本次仅作为构图迭代，不作为正式训练数据。
