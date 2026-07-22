@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-22 04:14 UTC - Record tracker-conditioned DiT4DiT training/evaluation contract
+
+- Reason: checkpoint evaluation must use the same Sim2Real v3 camera/scene contract as collection and must remain reproducible across the ManiSkill and DiT4DiT repositories.
+- Change: expanded `docs/TRACKER_BASED_TRAINING_COMMANDS_20260721.md` before evaluator changes with the exact 40k training command, checkpoint path, reused evaluation components, front+wrist/robot-base contract, server/open-loop/closed-loop commands and verified smoke evidence. No ManiSkill environment, camera pose, dataset, controller or collection output changed.
+- Boundary: simulator replay success validates the bridge only; learned-policy success remains unmeasured, and real wrist calibration remains unresolved.
+
 ## 2026-07-17 03:07 UTC - Safely restart the production matrix at job boundaries
 
 - Reason: Re-running the eight-job launcher after a host or scheduler interruption would revisit already completed shards and stop at the collector's no-overwrite guard, even when the next matrix job had never started.
