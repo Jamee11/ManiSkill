@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-22 09:06 UTC - Record corrected downstream evaluation protocol and tracker-visible cases
+
+- Reason: downstream evaluation proved that executing only the first predicted action and stopping at 100 steps misrepresented the trained 8-step-chunk policy; selected videos also needed interpretable tracker diagnostics.
+- Change: documentation now fixes the formal DiT4DiT protocol at `replan_every=8`, `max_steps=200`, and records the optional overlay plus measured 20k results. All overlay implementation and outputs live in DiT4DiT; no ManiSkill environment, camera, collector, dataset, controller, or existing output changed or was deleted.
+- Verification: Push/Pick completed 50 formal seeds each at `98%/82%`; all 100 formal and five overlay videos decode as H.264/yuv420p `512x256`.
+
 ## 2026-07-22 04:14 UTC - Record tracker-conditioned DiT4DiT training/evaluation contract
 
 - Reason: checkpoint evaluation must use the same Sim2Real v3 camera/scene contract as collection and must remain reproducible across the ManiSkill and DiT4DiT repositories.

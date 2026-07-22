@@ -113,10 +113,11 @@ CUDA_DEVICE=<sim_tracker_gpu> bash examples/RLBench_EORT/eval_files/run_maniskil
 --checkpoint checkpoints/maniskill_eort_v3_policy/maniskill_eort_v3_push_pick_front_wrist_tracker_fullft_40k/checkpoints/steps_<N>_pytorch_model.pt \
 --env-id PushCubeEORTSim2Real-v1 --condition learned_tracker \
 --tracker-checkpoint checkpoints/maniskill_eort_v3_push_cube_shared_rgbd_tracker_cache_v1_run2/best.pt \
---seed-start 2000000 --episodes 50 --output <new_output_dir>
+--seed-start 2000000 --episodes 50 --replan-every 8 --max-steps 200 \
+--output <new_output_dir>
 ```
 
-PickCube 使用 `PickCubeEORTSim2Real-v1` 和 Pick tracker checkpoint。每个输出目录必须是新目录；test seed 不参与调参。
+PickCube 使用 `PickCubeEORTSim2Real-v1` 和 Pick tracker checkpoint。仿真正式评估执行完整 8-step action chunk，最大 200 步；每个输出目录必须是新目录，test seed 不参与调参。挑选 case 可额外传 `--tracker-overlay`，只在保存的 front 视频上绘制 object/goal 像素、visibility、valid 和 robot-base relation，不改变 policy 输入。
 
 ### 2026-07-22 实际验证结果
 
@@ -125,7 +126,10 @@ PickCube 使用 `PickCubeEORTSim2Real-v1` 和 Pick tracker checkpoint。每个�
 - 使用 production Push test seed `2000000` 做真实 Sim2Real v3 replay：52 步 success，learned tracker condition 52/52 valid，动作零裁剪。
 - replay 视频为 front+wrist 横向合成，H.264/yuv420p、`512×256`、20 FPS、53 帧。
 - 在线 tracker 已去除对离线 converter/pandas 的隐式依赖，`maniskill-eort-v1` 环境可以直接加载 227 KB tracker checkpoint。
-- policy server launcher 默认使用训练一致的 `cosmos` Python；20k server 命令 dry-run 正确。当前所有 GPU 均被其他训练占用，尚未实际加载 20 GB policy checkpoint，因此 open-loop 数值指标与 learned-policy closed-loop success 仍待空闲 GPU 执行，不能由 replay success 代替。
+- policy server 已在 GPU 7 真实加载 20k checkpoint。held-out open-loop 共 146 samples：first-action arm L2 `0.005925`，chunk arm L2 `0.007187`，gripper wrong rate `0.004281`。
+- 正式 closed-loop 使用 test seeds `2000000..2000049`、`replan_every=8`、`max_steps=200`、10 DDIM steps：Push `49/50=98%`，Pick `41/50=82%`，两者均零动作裁剪。此前 `replan_every=1` 只反复执行 chunk 首动作，属于无效诊断结果，不进入结论。
+- formal MP4 与 tracker overlay MP4 均为 H.264/yuv420p、`512x256`。结果目录分别为 `eval_outputs/maniskill_eort_v3/steps_20000_{push,pick}_closedloop_50_replan8_max200` 和 `eval_outputs/maniskill_eort_v3/tracker_overlay_cases`。
+- 当前 Action DiT 采样由 `torch.randn` 初始化，同一 simulator seed 重跑可能变化；50-seed 成功率是随机策略估计。仿真结果不替代真实相机标定、tracker invalid handling 和硬件安全验证。
 
 ## 附录：EORT v3 采集命令留存
 

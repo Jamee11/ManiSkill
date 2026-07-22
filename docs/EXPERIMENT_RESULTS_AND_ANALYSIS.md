@@ -1,5 +1,12 @@
 # Experiment Results and Analysis
 
+## 2026-07-22 09:06 UTC - Downstream 20k learned-tracker policy evaluation
+
+- DiT4DiT 20k checkpoint 已在 EORT Sim2Real v3 环境完成真实推理。正式协议固定 front+wrist、frozen learned tracker、8-step action chunk、200-step horizon、test seeds `2000000..2000049`。
+- Push 为 `49/50=98%`，tracker-valid 1.000；Pick 为 `41/50=82%`，tracker-valid 0.9069；两者均无 action clipping。146-sample held-out open-loop 的 first/chunk arm L2 为 `0.005925/0.007187`。
+- 5 个挑选 case 已将 tracker 的 object/goal 像素、visibility、valid 和 robot-base relations 叠加到保存视频中；overlay 不进入 policy。Pick seed 2000014 是有代表性的失败 case：近距离遮挡后 tracker 大部分时间 invalid。
+- 边界：Action DiT 使用随机噪声初始化，同 seed 重跑不保证相同；该结果不证明真机 sim-to-real。正式视频和 JSON 位于 DiT4DiT `eval_outputs/maniskill_eort_v3`，原 ManiSkill 数据、环境与采集结果均未修改或删除。
+
 ## 2026-07-17 03:07 UTC - Production matrix job-level restart gate
 
 - Setup: Exercised the launcher without simulation using a missing root, requested variant directories plus an audit-success stub, and a partial requested directory plus an audit-failure stub.
