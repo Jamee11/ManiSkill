@@ -68,6 +68,7 @@ bash examples/RLBench_EORT/train_files/run_maniskill_eort_v3_joint_official_mini
 - front：`front_camera`，真实序列号 `344522302193`。
 - wrist：`hand_camera`，真实序列号 `339222070579`。
 - 禁用：`right_shoulder_camera`。
+- language 必须逐字使用训练 metadata：Push 为 `push cube to goal`，Pick 为 `pick cube to elevated goal`。
 - 相机内外参与每 episode ±1 cm / ±2° jitter 直接来自 `mani_skill/envs/tasks/tabletop/eort_visual_variants.py::EORTSim2RealV3Mixin`。
 - Push v3 目标中心偏移使用训练时的 `goal_center_offset_x=0.15 m`；eval 不重新定义场景几何。
 
