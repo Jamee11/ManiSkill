@@ -1,5 +1,14 @@
 # Experiment Results and Analysis
 
+## 2026-07-23 08:00 UTC - Franka task motion-planning preview and Piper availability audit
+
+- Protocol: used the existing ManiSkill Panda motion-planning runner with CPU simulation, GPU rendering, deterministic disjoint seed blocks, `only_count_success`, bounded attempts and three retained successful trajectories per task. Outputs are additive under `/remote-home/jinminghao/datasets/maniskill_task_preview_20260723`; no existing data was overwritten or deleted.
+- Successful preview set: `PickCube`, `PushCube`, `StackCube`, `PlaceSphere`, `PullCube`, `PullCubeTool`, `LiftPegUpright`, `PegInsertionSide`, `PlugCharger` and `StackPyramid`. Each has exactly three successful HDF5 trajectories and three MP4s, for 30 successful videos total. All 30 videos pass `ffprobe` as H.264/yuv420p, `512x512`.
+- Attempt evidence: eight tasks succeeded on all first three attempted seeds. `PlaceSphere` and `PlugCharger` needed 5 attempts for 3 successes; `PullCubeTool` needed 4 attempts and had one motion-planning failure. These tiny counts are preview evidence, not robust success-rate estimates.
+- Current failures: `DrawSVG` cannot instantiate because `svgpathtools` is absent; `DrawTriangle` exhausted 30 attempts because its solver calls the current `BaseMotionPlanningSolver` with an outdated positional-argument signature. Neither was patched or misreported as usable.
+- Coverage boundary: the registry contains further Panda-capable environments but they have no existing official Panda motion-planning solution in the current runner, so successful demonstration video collection is not currently available by changing only an environment ID.
+- Piper boundary: no `piper` agent, URDF/controller registration, SDK, task adapter or Piper environment exists in this ManiSkill checkout. The only registered two-arm tasks are `TwoRobotPickCube-v1` and `TwoRobotStackCube-v1`, both hard-coded to two `panda_wristcam` agents and neither has a checked-in motion-planning solver. Consequently no authentic dual-Piper rollout was generated; random or dual-Panda video would not be valid Piper capability evidence.
+
 ## 2026-07-22 09:06 UTC - Downstream 20k learned-tracker policy evaluation
 
 - DiT4DiT 20k checkpoint 已在 EORT Sim2Real v3 环境完成真实推理。正式协议固定 front+wrist、frozen learned tracker、8-step action chunk、200-step horizon、test seeds `2000000..2000049`。

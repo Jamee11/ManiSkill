@@ -72,6 +72,35 @@ bash examples/RLBench_EORT/train_files/run_maniskill_eort_v3_joint_official_mini
 - 相机内外参与每 episode ±1 cm / ±2° jitter 直接来自 `mani_skill/envs/tasks/tabletop/eort_visual_variants.py::EORTSim2RealV3Mixin`。
 - Push v3 目标中心偏移使用训练时的 `goal_center_offset_x=0.15 m`；eval 不重新定义场景几何。
 
+### 20k checkpoint 的实际闭环数据流
+
+```text
+ManiSkill reset(test seed)
+  ├─ front RGB-D ──> frozen learned tracker
+  │                    ├─ object/goal heatmap + visibility
+  │                    └─ depth + calibration 回投到 robot-base
+  │                         └─ 17D object condition + 1D valid
+  ├─ 8D robot state ──> sin/cos ──> 16D robot condition
+  └─ front RGB + wrist RGB
+       └─ 各自 256→224，横向拼接为 (3,224,448)
+
+language + front/wrist + (16D robot + 17D tracker + 1D valid)
+  └─ Video DiT：预测 future-video flow，并把 hidden states 交给 Action DiT
+       └─ Action DiT：从随机噪声去噪得到 (8,7) action chunk
+            └─ 反归一化为 robot-base metric action
+                 [Δxyz_m, Δrotvec_rad, gripper_open_fraction]
+                 └─ Panda adapter 转成 pd_ee_delta_pose command
+                      └─ 连续执行完整 8 步，再重新观测与规划
+```
+
+关键边界：
+
+- learned tracker 已冻结，不随 policy eval 更新；它只读取当前 front RGB-D。
+- Video DiT hidden states 仍然是 Action DiT 的条件；tracker message 只是加入原有 state prefix，没有替换 Video DiT。
+- policy 输入不包含 segmentation、actor ID、simulator pose、contact、phase 或 future label。
+- `--tracker-overlay` 只修改保存的视频副本，不修改送入模型的 RGB。
+- Action DiT 从 `torch.randn` 初始化；固定 simulator seed 仍不代表固定 model-noise seed。
+
 ### 已实现并验证的命令
 
 数据/环境 check-only（无需 model server）：
@@ -118,6 +147,90 @@ CUDA_DEVICE=<sim_tracker_gpu> bash examples/RLBench_EORT/eval_files/run_maniskil
 ```
 
 PickCube 使用 `PickCubeEORTSim2Real-v1` 和 Pick tracker checkpoint。仿真正式评估执行完整 8-step action chunk，最大 200 步；每个输出目录必须是新目录，test seed 不参与调参。挑选 case 可额外传 `--tracker-overlay`，只在保存的 front 视频上绘制 object/goal 像素、visibility、valid 和 robot-base relation，不改变 policy 输入。
+
+### 20k checkpoint 可直接复制的完整 eval runbook
+
+固定路径：
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+export CKPT=/remote-home/jinminghao/DiT4DiT/checkpoints/maniskill_eort_v3_policy/maniskill_eort_v3_push_pick_front_wrist_tracker_fullft_40k/checkpoints/steps_20000_pytorch_model.pt
+export DATASET=/remote-home/jinminghao/datasets/maniskill_eort_large_v3_sim2real/lerobot/test/learned_tracker
+export PORT=10093
+```
+
+终端 A：使用训练一致的 `cosmos` 环境启动 model server。20k checkpoint 约 20 GB，实际验证时放在 GPU 7：
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+CUDA_DEVICE=7 \
+MODEL_PYTHON=/remote-home/jinminghao/miniconda3/envs/cosmos/bin/python \
+PORT="$PORT" \
+bash examples/RLBench_EORT/eval_files/run_maniskill_eort_policy_server.sh "$CKPT"
+```
+
+看到 server listening 后，终端 B 运行 held-out open-loop：
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+PYTHONNOUSERSITE=1 \
+/remote-home/jinminghao/miniconda3/envs/cosmos-libero/bin/python \
+examples/RLBench_EORT/eval_files/eval_maniskill_eort_openloop.py \
+  --dataset-root "$DATASET" \
+  --checkpoint "$CKPT" \
+  --condition learned_tracker \
+  --episodes-per-dataset 10 \
+  --frame-stride 10 \
+  --host localhost --port "$PORT" \
+  --output eval_outputs/maniskill_eort_v3/steps_20000_openloop_full
+```
+
+终端 B 正式 Push closed-loop；GPU 6 只运行 simulator + Push tracker，GPU 7 保留给 server：
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+CUDA_DEVICE=6 PORT="$PORT" \
+bash examples/RLBench_EORT/eval_files/run_maniskill_eort_eval.sh \
+  --checkpoint "$CKPT" \
+  --env-id PushCubeEORTSim2Real-v1 \
+  --condition learned_tracker \
+  --tracker-checkpoint checkpoints/maniskill_eort_v3_push_cube_shared_rgbd_tracker_cache_v1_run2/best.pt \
+  --seed-start 2000000 --episodes 50 \
+  --replan-every 8 --max-steps 200 --ddim-steps 10 \
+  --output eval_outputs/maniskill_eort_v3/steps_20000_push_closedloop_50_replan8_max200
+```
+
+终端 B 正式 Pick closed-loop：
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+CUDA_DEVICE=6 PORT="$PORT" \
+bash examples/RLBench_EORT/eval_files/run_maniskill_eort_eval.sh \
+  --checkpoint "$CKPT" \
+  --env-id PickCubeEORTSim2Real-v1 \
+  --condition learned_tracker \
+  --tracker-checkpoint checkpoints/maniskill_eort_v3_pick_cube_shared_rgbd_tracker_cache_v1_run2/best.pt \
+  --seed-start 2000000 --episodes 50 \
+  --replan-every 8 --max-steps 200 --ddim-steps 10 \
+  --output eval_outputs/maniskill_eort_v3/steps_20000_pick_closedloop_50_replan8_max200
+```
+
+只生成少量 tracker overlay 诊断视频时，使用新的输出目录并附加：
+
+```bash
+--episodes 3 --tracker-overlay --output <new_tracker_overlay_output_dir>
+```
+
+结果文件：
+
+```text
+summary.json     聚合 success、steps、tracker-valid、action clipping
+episodes.jsonl  每个 seed 的逐 episode 结果
+run_config.json 完整协议
+episode_*.mp4   front+wrist H.264/yuv420p 视频
+```
+
+评估完成后在终端 A 使用 `Ctrl-C` 停止 server。不得用模糊的 `pkill python`，以免误杀其他训练；如果 server 是后台启动，只终止启动命令打印出的对应 PID。输出目录采用 `exist_ok=False`，重跑必须换新目录，不覆盖原结果。
 
 ### 2026-07-22 实际验证结果
 

@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-23 UTC - Preserve the complete 20k tracker-conditioned eval runbook
+
+- Reason: the verified Push/Pick capability was spread across commands and experiment notes, making it too easy to restart with the invalid one-action replanning protocol or omit the tracker/model split.
+- Change: expanded `docs/TRACKER_BASED_TRAINING_COMMANDS_20260721.md` with the actual model data flow, frozen-tracker boundary, Video DiT hidden-state path, exact 20k server/open-loop/Push/Pick commands, 8-step/200-step protocol, output schema and safe server shutdown. This is documentation only; no model, environment, dataset, checkpoint, evaluator, or existing output changed.
+- Verification: every referenced launcher, argument, checkpoint, tracker and output directory was checked against the current DiT4DiT tree and retained 2026-07-22 artifacts.
+
 ## 2026-07-22 09:06 UTC - Record corrected downstream evaluation protocol and tracker-visible cases
 
 - Reason: downstream evaluation proved that executing only the first predicted action and stopping at 100 steps misrepresented the trained 8-step-chunk policy; selected videos also needed interpretable tracker diagnostics.
