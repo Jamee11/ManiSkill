@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-23 UTC - Add the Franka task audit and preview report
+
+- Reason: the registry count, unique task semantics, available expert solvers and actually successful three-case previews needed one authoritative record instead of treating more than 30 Panda-related environment IDs as equivalent data-collection capabilities.
+- Change: added `docs/MANISKILL_FRANKA_SINGLE_ARM_TASK_AUDIT_AND_PREVIEW_20260723_CN.md` with the 84/36/17 task-count decomposition, all 17 named gripper tasks, PandaStick boundary, exact preview command/seeds, 30-video results, solver failures and sim-to-real prioritization. Documentation only; no task, solver, environment, dataset or retained video changed.
+- Verification: counts were read from the current runtime registry and runner mapping; all 30 successful videos were already verified as H.264/yuv420p `512x512`, and seed manifests record three retained successes per reported task.
+
 ## 2026-07-23 UTC - Preserve the complete 20k tracker-conditioned eval runbook
 
 - Reason: the verified Push/Pick capability was spread across commands and experiment notes, making it too easy to restart with the invalid one-action replanning protocol or omit the tracker/model split.
