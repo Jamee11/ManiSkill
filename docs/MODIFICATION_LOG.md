@@ -24,6 +24,12 @@
 - Change: expanded `docs/TRACKER_BASED_TRAINING_COMMANDS_20260721.md` before evaluator changes with the exact 40k training command, checkpoint path, reused evaluation components, front+wrist/robot-base contract, server/open-loop/closed-loop commands and verified smoke evidence. No ManiSkill environment, camera pose, dataset, controller or collection output changed.
 - Boundary: simulator replay success validates the bridge only; learned-policy success remains unmeasured, and real wrist calibration remains unresolved.
 
+## 2026-07-21 07:12 UTC - Additive high-throughput tracker cache for canonical EORT data
+
+- Reason: The DiT4DiT RGB-D tracker's per-frame gzip-HDF5/NPZ reads made the approved Push/Pick training schedule impractically slow.
+- Change: The canonical EORT raw/derived data now has an additive downstream cache-construction path under `tracker_cache_v1`, preserving RGB uint8, metric depth int16, oracle centroid/visibility labels and simulator seed in contiguous memory-mapped arrays. It does not rewrite or delete raw HDF5, derived labels, collection manifests, or existing LeRobot exports.
+- Boundary: This is a training-I/O representation only. RGB-D remains the tracker input; segmentation/centroids/visibility remain simulator oracle supervision, and the independent test split remains unused until the final evaluation.
+
 ## 2026-07-17 03:07 UTC - Safely restart the production matrix at job boundaries
 
 - Reason: Re-running the eight-job launcher after a host or scheduler interruption would revisit already completed shards and stop at the collector's no-overwrite guard, even when the next matrix job had never started.
@@ -376,3 +382,9 @@
 - 原因：真实标定相机下，PushCube 目标区域过于靠近相机，front/right 画面大量裁切；QA 预览使用 `mp4v`，无法在部分 VS Code 环境直接播放。
 - 精确变更：为基础 `PushCubeEnv` 提取 `goal_center_offset_x=0.20 m`，保持原环境数值不变；仅 `PushCubeEORTSim2Real-v1` 覆盖为 `0.15 m`，将目标中心沿 X 轴向 Panda 移动 5 cm。预览工具继续复用现有 OpenCV overlay，最终用系统 FFmpeg 编码为 `H.264/yuv420p/+faststart`，未新增依赖；旧数据和旧视频均不覆盖。
 - 验证：seed 2 QA smoke 的 native motion planning 与 `pd_ee_delta_pose` controller replay 均为 1/1 success，`T=57`；front/right object+goal 均 57/57 visible，hand goal 37/57 visible。新 QA MP4 经 ffprobe 确认为 H.264、yuv420p、768×256、20 FPS。目视显示目标可见范围改善但 front 下缘和 right 右缘仍有裁切，因此本次仅作为构图迭代，不作为正式训练数据。
+
+## 2026-07-21 01:45:36 UTC — v3 controller replay 有限重试与完整性门
+
+- 原因：GPU 7 的 PushCube/train 已证明 native source 可达 500 条，但官方 controller replay 在 episode 342 单次失败后静默只保存 499 条；旧 wrapper 会继续派生和导出，直到后续 audit 才发现数量不完整。
+- 精确变更：仅 v3 单分片 production collector 新增 `MANISKILL_EORT_CONTROLLER_REPLAY_MAX_RETRY`（默认 2，表示每条最多 3 次总 replay 尝试）并传给官方 `replay_trajectory`。replay 后、复制 seed manifest 或任何派生/预览/LeRobot export 前，读取 source/controller HDF5，要求两者均恰为 `NUM_TRAJ` 个 trajectory group 且每条 terminal `success=True`；不满足时保留已有原始诊断并以非零状态停止。dry-run 同时记录 retry 预算。
+- 边界：未修改环境、planner、官方 replay 成功判据或既有数据；不覆盖、不删除，也不对不完整 HDF5 内续写。有效性仍须以新的空 shard 实际 replay 及最终 `500/100/200` audit 验证。

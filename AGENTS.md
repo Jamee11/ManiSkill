@@ -15,3 +15,7 @@
 7. DO NOT send optional commentary.
 
 8. Before every code, configuration, training, data, or deployment change, read `docs/思考与隐患.md` and account for every unresolved item relevant to the change. When an item is resolved, update that document with the date, evidence, and affected scope; unresolved items remain mandatory considerations for subsequent changes.
+
+9. Think comprehensively, but keep responses concise and clear. Communicate the core conclusions and necessary details without unnecessary complexity, repetition, or verbosity.
+
+10. Before modifying code, verify that the change is necessary and appropriate. Review prior related changes and existing implementations first, reuse them when possible, and do not stack duplicate, overlapping, or redundant modifications.

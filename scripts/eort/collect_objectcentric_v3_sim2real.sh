@@ -29,10 +29,17 @@ esac
 NUM_TRAJ=${NUM_TRAJ:-${default_count}}
 START_SEED=${MANISKILL_EORT_START_SEED:-${default_seed}}
 MAX_ATTEMPTS=${MANISKILL_EORT_MAX_ATTEMPTS:-$((NUM_TRAJ * 5))}
+# A replay can occasionally miss native success because controller conversion is
+# simulated independently. Keep retries finite so a bad shard cannot run forever.
+CONTROLLER_REPLAY_MAX_RETRY=${MANISKILL_EORT_CONTROLLER_REPLAY_MAX_RETRY:-2}
+[[ "${CONTROLLER_REPLAY_MAX_RETRY}" =~ ^[0-9]+$ ]] || {
+  echo "MANISKILL_EORT_CONTROLLER_REPLAY_MAX_RETRY must be a non-negative integer" >&2
+  exit 2
+}
 
 if [[ "${DRY_RUN:-0}" == 1 ]]; then
-  printf '{"schema":"objectcentric_v3","root":"%s","task":"%s","split":"%s","env":"%s","episodes":%s,"start_seed":%s,"exports":"%s","cameras":["front_camera","right_shoulder_camera","hand_camera"],"resolution":256,"frame":"robot_base","artificial_occluder":false}\n' \
-    "${COLLECTION_ROOT}" "${TASK}" "${SPLIT}" "${env_id}" "${NUM_TRAJ}" "${START_SEED}" "${EXPORTS}"
+  printf '{"schema":"objectcentric_v3","root":"%s","task":"%s","split":"%s","env":"%s","episodes":%s,"start_seed":%s,"controller_replay_max_retry":%s,"exports":"%s","cameras":["front_camera","right_shoulder_camera","hand_camera"],"resolution":256,"frame":"robot_base","artificial_occluder":false}\n' \
+    "${COLLECTION_ROOT}" "${TASK}" "${SPLIT}" "${env_id}" "${NUM_TRAJ}" "${START_SEED}" "${CONTROLLER_REPLAY_MAX_RETRY}" "${EXPORTS}"
   exit 0
 fi
 [[ -n "${MANISKILL_EORT_CUDA_VISIBLE_DEVICES:-}" ]] || { echo "Set MANISKILL_EORT_CUDA_VISIBLE_DEVICES explicitly" >&2; exit 2; }
@@ -62,8 +69,45 @@ cd "${ROOT_DIR}"
 "${PYTHON}" -m mani_skill.trajectory.replay_trajectory \
   --traj-path "${trajectory_path}" --use-first-env-state \
   --target-control-mode pd_ee_delta_pose --obs-mode state_dict+rgb+depth+segmentation \
-  --save-traj --num-envs "${CONTROLLER_REPLAY_ENVS}" --sim-backend physx_cpu
+  --save-traj --num-envs "${CONTROLLER_REPLAY_ENVS}" --sim-backend physx_cpu \
+  --max-retry "${CONTROLLER_REPLAY_MAX_RETRY}"
 [[ -f "${controller_path}" ]] || { echo "Missing controller replay ${controller_path}" >&2; exit 1; }
+"${PYTHON}" - "${trajectory_path}" "${controller_path}" "${NUM_TRAJ}" "${CONTROLLER_REPLAY_MAX_RETRY}" <<'PY'
+import sys
+
+import h5py
+
+source_path, controller_path, expected_text, retries = sys.argv[1:]
+expected = int(expected_text)
+
+
+def trajectory_groups(path):
+    with h5py.File(path, "r") as handle:
+        groups = {name: item for name, item in handle.items() if isinstance(item, h5py.Group)}
+        unsuccessful = []
+        for name, group in groups.items():
+            if "success" not in group or len(group["success"]) == 0 or not bool(group["success"][-1]):
+                unsuccessful.append(name)
+    return groups, unsuccessful
+
+
+source_groups, source_unsuccessful = trajectory_groups(source_path)
+controller_groups, controller_unsuccessful = trajectory_groups(controller_path)
+problems = []
+if len(source_groups) != expected:
+    problems.append(f"source has {len(source_groups)} trajectories, expected {expected}")
+if source_unsuccessful:
+    problems.append(f"source has {len(source_unsuccessful)} unsuccessful trajectories")
+if len(controller_groups) != expected:
+    problems.append(f"controller replay saved {len(controller_groups)} trajectories, expected {expected}")
+if controller_unsuccessful:
+    problems.append(f"controller replay has {len(controller_unsuccessful)} unsuccessful trajectories")
+if problems:
+    raise SystemExit(
+        "Replay completeness gate failed after max_retry="
+        f"{retries}: " + "; ".join(problems) + ". Preserving raw diagnostics; refusing derivation/export."
+    )
+PY
 cp "${source_seed_manifest}" "${controller_seed_manifest}"
 
 "${PYTHON}" scripts/eort/derive_push_cube_eort.py \

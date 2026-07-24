@@ -16,6 +16,12 @@
 - 5 个挑选 case 已将 tracker 的 object/goal 像素、visibility、valid 和 robot-base relations 叠加到保存视频中；overlay 不进入 policy。Pick seed 2000014 是有代表性的失败 case：近距离遮挡后 tracker 大部分时间 invalid。
 - 边界：Action DiT 使用随机噪声初始化，同 seed 重跑不保证相同；该结果不证明真机 sim-to-real。正式视频和 JSON 位于 DiT4DiT `eval_outputs/maniskill_eort_v3`，原 ManiSkill 数据、环境与采集结果均未修改或删除。
 
+## 2026-07-21 07:12 UTC - Downstream contiguous tracker-cache construction (in progress)
+
+- The canonical Push/Pick train and validation HDF5/derived labels are being copied once into an additive `tracker_cache_v1` for DiT4DiT RGB-D tracker training. No collection artifact was changed, deleted, or treated as replaced.
+- Acceptance requires exact frame/seed parity, explicit train/validation seed disjointness, raw-source spot checks, and a mmap-loader throughput measurement before any accuracy conclusion. Existing LeRobot exports remain the DiT4DiT policy-training format; this separate cache is necessary because the RGB-D tracker needs raw metric depth and oracle label arrays not present in the MP4/Parquet export.
+- Result: cache counts exactly match Push `91,368/18,291` and Pick `117,489/23,730`; both tasks have 500 unique train seeds, 100 unique validation seeds, and zero train/validation overlap. First/middle/last cached frames in every split match raw RGB, depth, centroid and visibility values exactly. The completed cache is now consumed only by the RGB-D tracker; all original collection and LeRobot artifacts remain intact.
+
 ## 2026-07-17 03:07 UTC - Production matrix job-level restart gate
 
 - Setup: Exercised the launcher without simulation using a missing root, requested variant directories plus an audit-success stub, and a partial requested directory plus an audit-failure stub.
@@ -379,3 +385,21 @@
 - 结果：native motion planning 1/1 success，官方 `pd_ee_delta_pose` replay 1/1 success，`T=57`。初始 object/goal world X 为 `0.02294/0.17294 m`。front/right object+goal 都是 57/57 visible；hand object 57/57、goal 37/57。phase counts 为 approach/contact/moving/success=`41/0/7/9`。
 - 视频：QA MP4 为 H.264 High、yuv420p、768×256、20 FPS、57 帧，可由 VS Code/browser 常见解码器播放；首/中/末帧 contact sheet 同目录保存。
 - 分析：目标比旧 smoke 更远离相机，但新构图中 front goal bbox 首帧仍为 `[65,222,175,256]`，right 为 `[218,72,256,123]`，两者仍触及图像边界。因此 5 cm 是有效但不充分的改善，不能宣称目标已完整入镜。该 smoke 运行时工作树尚未提交，HDF5 metadata commit 仍记录旧 commit `56d518b`，只用于 QA；正式外机采集必须使用本次同步后的 commit，并以多 seed bbox 触边率和轨迹长度 audit 决定是否继续移动目标或调整任务工作区。
+
+## 2026-07-20 16:04 UTC — GPU 7 v3 production preflight smoke
+
+- 设置：为隔离当前服务器环境，向 `maniskill-eort-v1` 安装缺失的 `decorator==5.3.1`、`psutil==7.2.2` 及环境内 `IPython==8.39.0` 依赖；以 `PYTHONNOUSERSITE=1` 运行 `pip check`，结果为无 broken requirements。随后在 GPU 7、CPU PhysX + GPU renderer 上，以独立目录 `/remote-home/jinminghao/datasets/maniskill_eort_v3_sim2real_gpu7_smoke_20260720T1600Z` 运行 `PushCubeEORTSim2Real-v1`、seed 9,000,000、`NUM_TRAJ=1`，依次执行 native motion planning、`pd_ee_delta_pose` replay、v3 derivation、三视角 preview 与 oracle LeRobot export。
+- 结果：native 1/1 success（54 steps），controller replay 1/1 success；三路 raw RGB 为 `(55,256,256,3)`，depth/segmentation 为 `(55,256,256,1)`。front/right 的 object 与 goal 为 54/54 visible，wrist object 为 54/54、goal 为 34/54 visible。LeRobot 写入 1 episode、54 frames、三条视频和 metric robot-base 7D action；`audit_collection_v3.py --splits test --expected-counts test=1` 通过。
+- 分析与下一步：GPU 7 已通过端到端启动和单条数据契约检查，但该 smoke 不代替规模、成功率或长时稳定性证据。随后已按请求启动 `push_cube,pick_cube × train/val/test = 500/100/200` 的 1,600 条正式矩阵；完成后必须对两个 task 以默认 500/100/200 数量契约运行最终 audit，并记录各 split 的成功数、steps、visibility 分布及任何 attempt-budget 失败。
+
+## 2026-07-20 17:09 UTC — PushCube v3 train controller-replay completeness gate failure
+
+- 设置：GPU 7 正式矩阵的首个 PushCube train 分片完成 500 条 successful-only native motion-planning 后，运行既有 `pd_ee_delta_pose` replay、v3 sidecar、preview 与 LeRobot export；随后以 `audit_collection_v3.py --splits train --expected-counts train=500` 执行只读分片审计。
+- 结果：native source HDF5 为 500 trajectories，但官方 replay 日志为 `Replayed 500 episodes, 499/500=99.80% demos saved`；controller HDF5 与 v3 derived manifest 都是 499 条。日志明确 `Episode 342 is not replayed successfully. Skipping`；该 CLI 默认 `max_retry=0`，且默认不保存 replay-success 为 false 的 trajectory。故问题发生在 controller replay 成功性门，而非 sidecar/exporter 丢失。该 train-only audit 因 `train has 499 episodes, expected 500` fail closed。
+- 处置与下一步：已向正在进行的 val 采集发送中断并保留原始 source、499 条 controller/sidecar/LeRobot 和部分 val 诊断，未删除、覆盖或拼接任何 HDF5。按 production 数据安全合同，该 root 不能作为完整 1,600 条训练数据或通过最终 audit。后续需要在新的、空的 collection root 重跑全部矩阵，或在获得用户对 core collector 改动的确认后，先实现并验证“controller replay 使用有限 `max_retry`，且保存数量不足时在导出/下一分片前 fail closed”的修复；不得把缺失的一条手工补进现有分片。
+
+## 2026-07-21 01:45 UTC — v3 controller replay 完整性修复验证
+
+- 设置：用户确认后，v3 collector 将官方 `pd_ee_delta_pose` replay 的 `max_retry` 默认设为 2（单条至多三次尝试），并在 replay 返回后、任何 seed-manifest 复制/sidecar/preview/LeRobot 写入前，用 h5py 核验 source 与 controller trajectory 条数均等于请求的 `NUM_TRAJ`，且全部 terminal success。
+- 结果：`bash -n`、`git diff --check` 与 dry-run 通过；保留的 GPU 7 PushCube/train 诊断复核为 source=500、controller=499，恰会触发该 gate。全新目录 `/remote-home/jinminghao/datasets/maniskill_eort_v3_replay_gate_smoke_20260721T0148Z` 在 GPU 7、seed 9,100,000、`NUM_TRAJ=1` 下 native 1/1、62 steps，controller replay 1/1；随后 sidecar、H.264 三视角 preview、oracle LeRobot 导出及 `audit_collection_v3.py --splits test --expected-counts test=1` 全部通过。
+- 下一步：在保留原 PushCube 不完整分片的前提下，继续不冲突的 PickCube train/val/test；PushCube 缺失分片仍须以独立、可审计的重放/重建方案恢复到每 split 的数量契约，不能把其他 task 的样本替代该缺口。
