@@ -186,6 +186,24 @@ remote           : git@github.com:Jamee11/dit4wam.git
 checkpoint commit；数据集、20GB 模型权重、`eval_outputs/` 和本地工具配置不提交
 GitHub。
 
+本次实际同步记录：
+
+```text
+ManiSkill remote checkpoint : 00e5ab1
+DiT4DiT remote checkpoint  : 520993e
+```
+
+同步后的 DiT4DiT 工作树只保留明确排除的本地产物：
+
+```text
+.claude/
+docs/superpowers/
+eval_outputs/
+```
+
+它们没有被删除，也没有进入 GitHub。数据集、tracker/policy checkpoint 和训练日志
+仍保留在原本地路径，不由 Git 版本化。
+
 ---
 
 ## 2. 对旧方案必须做的修正
@@ -1349,8 +1367,8 @@ DiT4DiT : Integrate COE joint training
 - [x] 修正 primary effect target；
 - [x] 明确 FlowWAM 边界；
 - [x] 写出 phased plan、gate、隐患和停止条件；
-- [ ] 提交并推送当前 ManiSkill 文档/collector checkpoint；
-- [ ] 审计并提交 DiT4DiT 当前 baseline 相关源码，排除 runtime artifacts。
+- [x] 提交并推送当前 ManiSkill 文档/collector checkpoint：`00e5ab1`；
+- [x] 审计并提交 DiT4DiT 当前 baseline 相关源码：`520993e`，排除 runtime artifacts。
 
 ### 下一次代码工作
 
