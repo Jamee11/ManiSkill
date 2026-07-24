@@ -1,7 +1,8 @@
 # COE-WAM 可靠实施规划
 
-日期：2026-07-24  
-状态：实施前设计冻结；尚未修改 COE-WAM 模型、训练或 counterfactual collector  
+日期：2026-07-24
+
+状态：实施前设计冻结；尚未修改 COE-WAM 模型、训练或 counterfactual collector
 主仓库：
 
 ```text
@@ -1256,19 +1257,19 @@ tracker invalid
 
 按优先级：
 
-1. **同状态 restore 是否在 contact/grasp 阶段足够确定。**  
+1. **同状态 restore 是否在 contact/grasp 阶段足够确定。**
    如果不成立，counterfactual标签本身不可信。
-2. **K个Action DiT候选是否有真实 outcome diversity。**  
+2. **K个Action DiT候选是否有真实 outcome diversity。**
    如果oracle best都不比candidate 0好，selector没有上限。
-3. **现有17D tracker condition是否在强Video DiT上提供独立信息。**  
+3. **现有17D tracker condition是否在强Video DiT上提供独立信息。**
    当前高成功率不能证明模型使用了condition。
-4. **两个cube任务能否支撑研究结论。**  
+4. **两个cube任务能否支撑研究结论。**
    很可能只能完成方法gate，不能支撑代表作。
-5. **mean-pooled Video hidden是否保留小object信息。**  
+5. **mean-pooled Video hidden是否保留小object信息。**
    它是工程最小实现，不是最终结构保证。
-6. **真实goal、front/wrist calibration与invalid fallback。**  
+6. **真实goal、front/wrist calibration与invalid fallback。**
    这是sim2real最危险的接口。
-7. **Novelty变化速度。**  
+7. **Novelty变化速度。**
    FlowWAM、counterfactual world models和candidate ranking都在快速出现；最终贡献
    必须靠same-state paired effect protocol与严格identifiability实验，而不是名称。
 

@@ -1,7 +1,8 @@
 # Object-Centric Sim2Real WAM：三套可落地的 DiT4DiT 方案
 
-日期：2026-07-24  
-状态：方案设计，尚未修改模型、训练代码或数据 schema  
+日期：2026-07-24
+
+状态：方案设计，尚未修改模型、训练代码或数据 schema
 涉及项目：
 
 - `/remote-home/jinminghao/DiT4DiT`

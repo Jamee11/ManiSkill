@@ -1,6 +1,7 @@
 # Object-Centric WAM 三方案复审、Novelty 判断与最快实现建议
 
-首次完成：2026-07-24 03:29:29 UTC  
+首次完成：2026-07-24 03:29:29 UTC
+
 FlowWAM 对照修订：2026-07-24 UTC
 
 复审对象：
@@ -1765,16 +1766,16 @@ object、flow、head 或 candidate selection 中的任何一个单独组件。
 
 如果实验成立，可以形成四项集中贡献：
 
-1. **Counterfactual EORT protocol/data**  
+1. **Counterfactual EORT protocol/data**
    在相同可恢复 simulator state 下执行多个 metric action chunk，得到配对的
    task-object effect、validity、contact/risk 标签和严格 provenance。
-2. **Action-conditioned object-effect model**  
+2. **Action-conditioned object-effect model**
    在 DiT4DiT predictive hidden 与 deployable role state 上，显式预测
    `candidate action → h=1/4/8 metric object effect + uncertainty`。
-3. **Effect-guided action diffusion**  
+3. **Effect-guided action diffusion**
    用 predicted effect 对 Action DiT 的多个随机候选进行选择或后续可微引导，并
    在 ID/OOD/遮挡/物理变化下验证。
-4. **Identifiability and transfer evaluation**  
+4. **Identifiability and transfer evaluation**
    使用 action shuffle、same-state sensitivity、behavior-only vs counterfactual、
    oracle vs learned perception 和 real calibration boundary 评价模型是否真的使用
    action 并作用于 object。
