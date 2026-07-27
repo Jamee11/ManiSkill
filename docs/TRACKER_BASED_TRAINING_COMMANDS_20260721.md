@@ -43,6 +43,119 @@ bash examples/RLBench_EORT/train_files/run_maniskill_eort_v3_joint_official_mini
 
 2026-07-22 04:14 UTC 审计时已有 `steps_5000/10000/15000/20000_pytorch_model.pt`；40k 训练仍在继续。评估只使用已经原子写完的 `.pt`，当前推荐先以 `steps_20000_pytorch_model.pt` 做流程验证。
 
+### 2026-07-27：无 tracker 的原版式配对 baseline
+
+该 baseline 用于回答“learned-tracker condition 是否真正带来收益”。它保持 PushCube + PickCube、front + wrist、训练样本、Video DiT hidden-state condition、action chunk、loss、全参训练方式和优化参数不变，只移除 Action DiT 的 tracker message：
+
+```text
+tracker 版本：Action DiT state = 16D robot sin/cos + 17D tracker message + 1D valid = 34D
+baseline 版本：Action DiT state = 16D robot sin/cos
+```
+
+这里仍读取 `lerobot/train/learned_tracker`，是为了让两组实验使用完全相同的视频、动作、episode 和 split。数据字段的顺序是 robot state 在前、tracker condition 在后；设置 `STATE_DIM=16` 和 `MAX_STATE_DIM=16` 后，loader 只保留前 16D robot sin/cos，后 18D tracker 字段不会进入模型。训练时也不会加载或运行 tracker。实测 loader 合同为：
+
+```text
+dataset samples: 78326
+state:           (1,16)
+action chunk:    (8,7)
+video:           5 × (3,224,448)
+```
+
+这是一组“原版 DiT4DiT conditioning 逻辑 + ManiSkill 数据适配”的 robot-only 配对 baseline；不是声称整个工程与上游仓库逐文件完全相同。Video DiT hidden states 仍然送入 Action DiT，future-video loss 仍然监督，Video DiT 与 Action DiT 均全参训练，仅冻结 text encoder 和 VAE。
+
+完整 4-GPU、40k 启动命令：
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+mkdir -p logs/maniskill_eort_v3_policy
+
+PATH=/remote-home/jinminghao/miniconda3/envs/cosmos/bin:$PATH \
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
+PYTHONNOUSERSITE=1 \
+PYTHON_BIN=/remote-home/jinminghao/miniconda3/envs/cosmos/bin/python \
+MANISKILL_EORT_COLLECTION_ROOT=/remote-home/jinminghao/datasets/maniskill_eort_large_v3_sim2real \
+BASE_MODEL=/remote-home/jinminghao/ckpts/Cosmos-Predict2.5-2B \
+DATA_ROOT_DIR=/remote-home/jinminghao/datasets/maniskill_eort_large_v3_sim2real/lerobot/train/learned_tracker \
+DATA_MIX=maniskill_eort_push_pick_v3_sim2real_learned_tracker_lerobot \
+MANISKILL_EORT_OBJECT_DROPOUT_PROB=1 \
+STATE_DIM=16 \
+MAX_STATE_DIM=16 \
+OBJECT_TOKEN_START=0 \
+OBJECT_TOKEN_DIM=0 \
+OBJECT_DYNAMICS_ENABLED=false \
+ACTION_TYPE=metric_robot_base_delta_pose_controller_command \
+ACTION_NORMALIZATION=q99 \
+ACTION_VIDEO_FREQ_RATIO=2 \
+COMPUTE_FUTURE_VIDEO_LOSS=true \
+COSMOS_TRAINING_MODE=joint \
+COSMOS_DETACH_HIDDEN=true \
+BACKBONE_TUNING_MODE=default \
+FREEZE_MODULES=backbone_interface.extractor.text_encoder,backbone_interface.extractor.vae \
+VIDEO_BACKEND=decord \
+LOAD_ALL_DATA_FOR_TRAINING=false \
+NUM_WORKERS=8 \
+NUM_PROCESSES=4 \
+PER_DEVICE_BATCH_SIZE=3 \
+GRADIENT_ACCUMULATION_STEPS=4 \
+MAX_TRAIN_STEPS=40000 \
+SAVE_INTERVAL=10000 \
+LOGGING_FREQUENCY=100 \
+WANDB_MODE=offline \
+WANDB_PROJECT=DiT4DiT_maniskill_eort_v3 \
+RUN_ROOT_DIR=/remote-home/jinminghao/DiT4DiT/checkpoints/maniskill_eort_v3_policy \
+RUN_ID=maniskill_eort_v3_push_pick_front_wrist_robot_only_fullft_40k_bs3acc4 \
+nohup bash examples/RLBench_EORT/train_files/run_rlbench_lerobot.sh \
+> logs/maniskill_eort_v3_policy/front_wrist_robot_only_fullft_40k_bs3acc4.log 2>&1 &
+
+echo "PID=$!"
+```
+
+有效 batch size 为 `4 GPUs × 3 samples/GPU × 4 accumulation = 48`，与对应的 tracker run 保持一致。查看日志：
+
+```bash
+tail -f logs/maniskill_eort_v3_policy/front_wrist_robot_only_fullft_40k_bs3acc4.log
+```
+
+底层 `run_rlbench_lerobot.sh` 直接调用 `accelerate`，只设置 `PYTHON_BIN` 不会自动修改 `PATH`，因此命令首行必须保留：
+
+```bash
+PATH=/remote-home/jinminghao/miniconda3/envs/cosmos/bin:$PATH
+```
+
+若日志显示 `Object dynamics: enabled=false, target=34+18`，其中 `target=34+18` 只是未启用 head 的默认打印值；以 `enabled=false` 为准，不会建立或训练 object-dynamics head。不要用 `run_maniskill_eort_v3_joint_official_minimal.sh` 启动该 baseline，因为该 wrapper 固定覆盖为 learned-tracker 数据合同和 `34D state`。
+
+### robot-only baseline 闭环评估（严格无 tracker / 无 oracle）
+
+实现复用已有 server、图像预处理、动作反归一化与闭环 evaluator；新增唯一编排脚本：
+
+```text
+DiT4DiT/examples/RLBench_EORT/eval_files/run_maniskill_eort_robot_only_baseline_eval.sh
+```
+
+评估数据流严格与训练的 `STATE_DIM=16` / `MAX_STATE_DIM=16` 对齐：
+
+```text
+front RGB + wrist RGB ──> Video DiT
+8D robot state ──> sin/cos ──> 16D Action DiT state
+
+tracker、front RGB-D、simulator object/goal pose、segmentation、contact 均不读取
+```
+
+`robot_only` evaluator 只构造零值的 17D/1D 占位以复用观测接口；client 在此模式只取前 8D robot state 并输出 `(1,16)`，不会归一化或传入 object/valid 字段。因此 `episodes.jsonl` 中的 `valid_condition_steps=0` 是预期行为，不表示 tracker 失败。
+
+正式 50-seed 命令（每个 episode 自动保存 front+wrist MP4）：
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+CKPT=checkpoints/maniskill_eort_v3_policy/maniskill_eort_v3_push_pick_front_wrist_robot_only_fullft_40k_bs3acc4/checkpoints/steps_20000_pytorch_model.pt \
+MODEL_GPU=7 SIM_GPU=6 PORT=10093 EPISODES=50 STAGE=all \
+bash examples/RLBench_EORT/eval_files/run_maniskill_eort_robot_only_baseline_eval.sh
+```
+
+`STAGE=all|push|pick` 可只重跑一个任务；`SEED_START=2000000`、`REPLAN_EVERY=8`、`MAX_STEPS=200`、`DDIM_STEPS=10` 默认与 tracker 评估相同。脚本为每个运行新建输出目录，写入 `push/`、`pick/` 的 `summary.json`、`episodes.jsonl`、`run_config.json` 和逐 episode MP4；模型 server 最多等待 `SERVER_WAIT_SECONDS=600` 秒并在结束时只终止自身启动的 PID。
+
+已用 10k checkpoint、seed `2000000` 做真实 smoke：Push 76 步成功、Pick 132 步成功，均保存双视角视频，且 `valid_condition_steps=0`。
+
 ## 2. 评估流程：复用现有框架，最小补齐
 
 复用以下已有文件，不新建第二套 server/client：
