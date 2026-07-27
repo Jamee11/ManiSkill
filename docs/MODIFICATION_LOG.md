@@ -1,5 +1,12 @@
 # Modification Log
 
+## 2026-07-27 UTC - Freeze the RSIG-DiT4DiT implementation plan
+
+- Reason: object-only future motion cannot represent approach and release intervals where the EEF moves while the object remains static; slot extraction alone also overlaps too strongly with recent task-aware and object-addressable slot work.
+- Change: added `docs/ROLE_SLOT_INTERACTION_GRAPH_IMPLEMENTATION_PLAN_CN_20260727.md`. The proposed additive architecture uses EEF/Object/Goal role slots, EEF→Object and Object→Goal relations, a predicted four-way interaction state, and h=1/4/8 EEF/Object translation plans shared by the late Video DiT and Action DiT. Simulator phase/contact/grasp/future motion remain supervision-only. Added the unresolved shared-phase, single-frame ambiguity, EEF-motion shortcut and ID-ceiling risks to `docs/思考与隐患.md`.
+- Boundary: documentation and planning only. No environment, dataset, exporter, model, training configuration, checkpoint or retained output was changed. Core implementation still requires explicit confirmation.
+- Verification: the plan was checked against the current v3 robot-base sidecar fields, the detached H18/action-state code path, existing Push/Pick phase definitions and retained closed-loop results.
+
 ## 2026-07-23 UTC - Add the Franka task audit and preview report
 
 - Reason: the registry count, unique task semantics, available expert solvers and actually successful three-case previews needed one authoritative record instead of treating more than 30 Panda-related environment IDs as equivalent data-collection capabilities.
