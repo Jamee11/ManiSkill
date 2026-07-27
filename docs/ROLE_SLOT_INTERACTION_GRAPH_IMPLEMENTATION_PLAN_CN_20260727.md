@@ -2,7 +2,9 @@
 
 日期：2026-07-27 UTC
 
-状态：设计已冻结，核心模型尚未修改
+状态：历史三节点方案；已由 `RSIG_DiT4DiT_FINAL_FEASIBLE_PLAN_CN_20260727.md` 取代，核心模型尚未修改
+
+> 2026-07-27 修订：当前随机 sample loader 不支持跨 episode memory；第一版也不应强制预测不可见 goal 的精确位置。本文保留为设计推导记录，实际实现以最终可行方案为准。
 
 目标：在尽量保留原版 DiT4DiT 双 flow-matching 主链的前提下，验证可部署的 object-centric interaction representation 是否同时改善未来建模和动作预测。
 

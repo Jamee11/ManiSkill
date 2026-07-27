@@ -1,5 +1,12 @@
 # Modification Log
 
+## 2026-07-27 UTC - Replace the three-node RSIG proposal with a loader-compatible v1
+
+- Reason: the current LeRobot loader samples independent timesteps and cannot train persistent episode memory; precise Goal Slot supervision is also undefined when the goal is invisible and risks distilling simulator scene templates.
+- Change: added `docs/RSIG_DiT4DiT_FINAL_FEASIBLE_PLAN_CN_20260727.md` and marked the earlier three-node plan as historical. RSIG-v1 now uses only EEF/Object slots, a continuous interaction token, and h=1/4/8 EEF/Object unit directions plus moving probabilities. It removes memory, Goal Slot, goal/object-to-goal losses and phase classification. The proposed 44D auxiliary tail plus 16D robot state fits the existing 64D loader without changing generic padding.
+- Boundary: documentation and design only. No environment, collector, dataset, exporter, model, training configuration, checkpoint or retained output changed. The user-provided `RSIG_DiT4DiT_Problems_and_Solutions_CN.md` remains intact.
+- Verification: the final contract was checked against the existing per-sample LeRobot transforms, 64D state cap, v3 T+1 pose/camera data, current target-isolation pattern and detached H18 Action path.
+
 ## 2026-07-27 UTC - Freeze the RSIG-DiT4DiT implementation plan
 
 - Reason: object-only future motion cannot represent approach and release intervals where the EEF moves while the object remains static; slot extraction alone also overlaps too strongly with recent task-aware and object-addressable slot work.
