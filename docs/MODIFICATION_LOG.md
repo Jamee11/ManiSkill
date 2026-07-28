@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-28 11:37:27 UTC - Make RSIG gradient diagnostics compatible with Accelerate DeepSpeed
+
+- Reason: after the dtype fix, the next smoke reached `accelerator.backward`, but Accelerate executed `engine.step()` inside that call; the subsequent `safe_get_full_grad` query was therefore too late and raised before metrics were logged.
+- Exact change: capture the same four path-specific gradient norms with temporary parameter autograd hooks during backward, remove the hooks immediately afterward, and read `video_alpha` after the internal step. Added a launcher preflight that rejects `torch.cuda.is_available()==False` instead of silently running the 2B smoke on CPU. This does not repair or alter host NVML/CUDA configuration.
+- Verification: trainer compilation, launcher shell syntax, seven focused RSIG tests and a standalone hook-before-step/grad-cleared-after-step check pass. A real CUDA smoke remains required.
+
 ## 2026-07-28 09:04:11 UTC - Fix Cosmos future-flow input dtype for the RSIG smoke
 
 - Reason: the first real single-GPU RSIG smoke exited before backward because the flow-matching latent mixture was promoted to `float32` while the Cosmos patch embedding weights were `bfloat16`.

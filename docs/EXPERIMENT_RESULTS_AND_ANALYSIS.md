@@ -1,5 +1,11 @@
 # Experiment Results and Analysis
 
+## 2026-07-28 11:37:27 UTC - Second RSIG smoke exposed DeepSpeed diagnostic timing and missing CUDA
+
+- Result: the rerun no longer hit the future-flow dtype error and reached `accelerator.backward`; however the log explicitly reports `Device: cpu`, `CUDA is not available`, and disabled CUDA autocast. Accelerate performs DeepSpeed `engine.step()` inside `accelerator.backward`, so the post-call `safe_get_full_grad` diagnostic raised `Gradients are only available immediately after backward and before engine step`.
+- Fix/boundary: path-specific norms are now captured by temporary autograd hooks while backward is executing, before DeepSpeed clears gradients. The launcher now fails before model loading when CUDA is unavailable. No NVML/driver/container repair was attempted, per user direction; this CPU run is not valid GPU smoke or gradient evidence.
+- Static verification/next gate: compilation, shell syntax, seven RSIG tests and a hook timing self-check pass. Wait for the user to rerun in a container where `torch.cuda.is_available()` is true.
+
 ## 2026-07-28 09:04:11 UTC - First real RSIG smoke dtype failure and minimal fix
 
 - Setup/result: the external single-GPU smoke loaded the model and entered the second future-video flow-matching Transformer call, then exited before backward at Cosmos patch embedding with `float != bfloat16`. Therefore it produced no valid Action/Video/RSIG gradient evidence and is not a successful smoke.
