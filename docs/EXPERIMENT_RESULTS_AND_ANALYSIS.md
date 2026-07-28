@@ -1,5 +1,11 @@
 # Experiment Results and Analysis
 
+## 2026-07-28 09:04:11 UTC - First real RSIG smoke dtype failure and minimal fix
+
+- Setup/result: the external single-GPU smoke loaded the model and entered the second future-video flow-matching Transformer call, then exited before backward at Cosmos patch embedding with `float != bfloat16`. Therefore it produced no valid Action/Video/RSIG gradient evidence and is not a successful smoke.
+- Root cause/fix: `prepare_latents(..., dtype=float32)` made `cond_latents` float32; the future-flow mixture lacked the final dtype cast already present in the ordinary denoising path. The mixture is now explicitly converted to `transformer_dtype` immediately before the Transformer.
+- Static verification/next gate: Python compilation, seven focused RSIG tests and an isolated bf16 dtype assertion pass. Rerun the same one-step command; only finite main/auxiliary losses, nonzero path-specific gradients, gate movement and `Training complete` can close the full-model gate.
+
 ## 2026-07-28 03:27:43 UTC - RSIG bulk export, joint loader and runtime-gradient preflight
 
 - Setup: ran the additive six-way RSIG exporter with six parallel jobs against `/remote-home/jinminghao/datasets/maniskill_eort_large_v3_sim2real`, then independently audited conversion summaries and physical files before invoking `CHECK_ONLY=1` on the Push+Pick training mixture.

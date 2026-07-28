@@ -1,5 +1,11 @@
 # Modification Log
 
+## 2026-07-28 09:04:11 UTC - Fix Cosmos future-flow input dtype for the RSIG smoke
+
+- Reason: the first real single-GPU RSIG smoke exited before backward because the flow-matching latent mixture was promoted to `float32` while the Cosmos patch embedding weights were `bfloat16`.
+- Exact change: in the sibling DiT4DiT repository, cast only the completed `in_latents_fm` mixture to `transformer_dtype`, matching the existing ordinary denoising path. The latent values, future-video target, loss, RSIG injection, optimizer and datasets are unchanged.
+- Verification: `Cosmos25.py` compiles, seven focused RSIG tests pass, and an isolated mixed-float tensor check confirms the resulting future-flow input is `torch.bfloat16`. A full Cosmos forward/backward must still be rerun on the external GPU before this runtime gate is marked resolved.
+
 ## 2026-07-28 UTC - Additive color-language and physical-distractor v4 collection branch
 
 - Reason: The requested PushCube/PickCube collection must make the manipulated cube visually and linguistically unambiguous while testing clutter robustness, without changing the established v3 baseline or reintroducing the disallowed visual occlusion panel.
