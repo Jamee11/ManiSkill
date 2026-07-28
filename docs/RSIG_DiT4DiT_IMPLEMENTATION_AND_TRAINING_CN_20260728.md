@@ -33,7 +33,7 @@ video_alpha初始化为0
 
 - `Role/Interaction → 3个RSIG token → Action DiT → action_dit_loss`，Action主损失直接反传到role/interaction及其Action投影。
 - `Role/Interaction → block-17 zero-init residual → Video DiT → future_video_loss`，Video主损失第一步先反传到`video_alpha`；gate离开0后继续反传到video adapter和共享role/interaction。
-- 3个Plan token会进入Action DiT并改变预测，但v1按既定因果边界在该分支stop-gradient；Plan head只由direction/moving supervision训练。这一点是有意设计，不应误报为Action loss训练Plan predictor。
+- 3个Plan token会进入Action DiT并改变预测；v1在Plan features处stop-gradient，Plan head只由direction/moving supervision训练，而`plan_to_hidden`由Action loss训练。这一点不应误报为Action loss训练Plan predictor。
 - `COSMOS_DETACH_HIDDEN=true`仍保持官方最小改动边界：Action loss不经H18回传Video DiT；Video DiT由`future_video_loss`全参更新。
 
 训练 state 是 `(1,60)`：
@@ -161,6 +161,7 @@ rsig_role/relation/contact/moving/direction_loss
 total_loss
 rsig_diag/action_role_projection_grad_norm > 0
 rsig_diag/action_interaction_projection_grad_norm > 0
+rsig_diag/action_plan_projection_grad_norm > 0
 rsig_diag/video_alpha_grad_norm > 0
 rsig_diag/video_hidden_dim_* 与真实H18布局一致
 rsig_diag/video_alpha_before_step != video_alpha_after_step
@@ -168,7 +169,7 @@ rsig_diag/video_alpha_before_step != video_alpha_after_step
 final_model可保存
 ```
 
-Plan stop-gradient由focused unit test验证，不使用ZeRO-2清理后的`.grad` presence作运行时证据。smoke launcher默认使用`NUM_WARMUP_STEPS=0`，因此一步即可观察gate更新；它关闭额外DDIM eval和中间checkpoint，只保留训练结束时的`final_model`。
+Plan predictor stop-gradient与`plan_to_hidden`非零梯度由focused unit test验证，不使用ZeRO-2清理后的`.grad` presence作运行时证据。smoke launcher默认使用`NUM_WARMUP_STEPS=0`，因此一步即可观察gate更新；它关闭额外DDIM eval和中间checkpoint，只保留训练结束时的`final_model`。
 
 ## 7. 4 GPU 20-step校准
 

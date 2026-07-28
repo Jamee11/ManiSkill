@@ -31,7 +31,7 @@ L_total
 
 - Role token 和 Interaction token 接受 **Action 主损失**梯度。
 - Video residual 接受 **future-video 主损失**梯度。
-- Motion Plan 当前会进入 Action DiT 前向，但整组 `plan_tokens` 被 `detach()`，所以 Plan 分支只接受 RSIG auxiliary loss，不接受 Action 主损失。
+- Motion Plan predictor只接受 RSIG auxiliary loss；其8D输出先`detach()`，再经可训练的`plan_to_hidden`进入Action DiT，所以Action主损失只训练Plan-to-Action投影，不反向污染Plan predictor。
 - 原始 H18 在送入 Action DiT 前已 detach，所以 Action loss 不回传 Video DiT；Video DiT 仍由 `future_video_loss` 全参数训练。
 
 ## 2. 完整实现流程图
@@ -92,7 +92,8 @@ flowchart TB
         HEADS["辅助预测 heads<br/>role/relation/contact/moving/direction"]
         RPROJ["2个 Role action tokens"]
         IPROJ["1个 Interaction action token"]
-        PPROJ["3个 Plan action tokens"]
+        PSTOP["stopgrad Plan features"]
+        PPROJ["可训练plan_to_hidden<br/>3个 Plan action tokens"]
         SIX["共6个 RSIG condition tokens"]
 
         DETACH --> CURRENT
@@ -106,7 +107,8 @@ flowchart TB
         PLAN --> HEADS
         ROLES --> RPROJ
         INTER --> IPROJ
-        PLAN --> PPROJ
+        PLAN --> PSTOP
+        PSTOP --> PPROJ
         RPROJ --> SIX
         IPROJ --> SIX
         PPROJ --> SIX
@@ -144,6 +146,7 @@ flowchart TB
 
     LACTION -. "Action主损失梯度" .-> RPROJ
     LACTION -. "Action主损失梯度" .-> IPROJ
+    LACTION -. "Action主损失只训练投影" .-> PPROJ
     LVIDEO -. "Video主损失梯度" .-> VINJECT
     LAUX -. "辅助监督梯度" .-> HEADS
 
@@ -284,7 +287,7 @@ ActionCondition = concat(
     detached_video_H18,
     role_tokens[2],
     interaction_token[1],
-    detached_plan_tokens[3]
+    plan_to_hidden(detached_plan_features)[3]
 )
 ```
 
@@ -309,7 +312,7 @@ H18_detached
 2. Role/Interaction token 改变 Action DiT 的 condition sequence；
 3. Action loss 会更新 `role_to_hidden`、`interaction_to_hidden`，并继续更新其上游 Role/Interaction 提取模块；
 4. Action loss 不会更新 Video DiT，因为原版边界仍设置 `COSMOS_DETACH_HIDDEN=true`；
-5. 当前 Plan token 在进入拼接前整体 detach，所以会改变 forward，但 Action loss 不会训练 Plan 分支。
+5. 当前在`plan_features`处stop-gradient：Action loss训练`plan_to_hidden`，但不进入`plan_head`及其上游Interaction。
 
 换言之，当前 Action 分支真正由主损失联合训练的是：
 
@@ -402,43 +405,27 @@ H18' = H18
 | `role_to_hidden` | 是 | 否 | 否 | Action专用投影 |
 | `interaction_to_hidden` | 是 | 否 | 否 | Action专用投影 |
 | `plan_head` | **否** | 否 | 是 | 当前按设计stop-gradient |
-| `plan_to_hidden` | **否** | 否 | **否** | 当前被整组output detach阻断 |
+| `plan_to_hidden` | 是 | 否 | 否 | Action专用可训练投影 |
 | `video_alpha` | 否 | 第1步起是 | 否 | 零初始化gate |
 | `video_query` / `video_out` | 否 | gate非零后是 | 否 | Video专用adapter |
 | relation/contact/moving heads | 否 | 否 | 是 | 只负责语义监督 |
 | Text encoder / VAE | 否 | 否 | 否 | 延续原版冻结设置 |
 
-### 7.1 当前 Plan stop-gradient 的一个具体隐患
+### 7.1 Plan stop-gradient 已按最小方案修正
 
 当前代码是：
 
 ```python
-plan_tokens = self.plan_to_hidden(plan_features)
-action_tokens = torch.cat(
-    (role_tokens, interaction_token, plan_tokens.detach()),
-    dim=1,
-)
-```
-
-这会同时阻断：
-
-- Action loss → `plan_head`
-- Action loss → `plan_to_hidden`
-
-`plan_head` 仍由 direction/moving auxiliary loss 训练，但 `plan_to_hidden` 不被任何 loss 训练，实际成为一个固定随机投影。Plan token 仍会随 `plan_features` 变化并影响 Action forward，但其映射本身不会学习。
-
-如果目标只是“Action loss 不反向污染 Plan predictor”，更合理的最小写法通常是：
-
-```python
 plan_tokens = self.plan_to_hidden(plan_features.detach())
+action_tokens = torch.cat((role_tokens, interaction_token, plan_tokens), dim=1)
 ```
 
-这样：
+这样同时满足：
 
 - `plan_head` 仍只由明确的 direction/moving label 训练；
 - `plan_to_hidden` 可以由 Action loss 学会如何把可靠的8D plan 编成 Action DiT 易用的 token。
 
-这是本次代码审查发现的真实设计风险。本说明文档没有擅自修改核心逻辑；按项目规则，应在用户确认后再做这一行的可逆改动和对应消融。
+focused test已确认Plan-token-only Action loss使`plan_to_hidden.weight`得到非零梯度，而`plan_head.weight.grad`保持`None`。这保留了Plan predictor的因果边界，同时消除了固定随机投影。
 
 ## 8. “梯度报错”具体是什么问题
 
@@ -536,9 +523,9 @@ but got float != c10::BFloat16
 
 原因是第二次 future-flow forward 构造的完整 latent 为 float32，而 Cosmos patch embedding 权重是 bf16。现在进入 transformer 前显式转换到 `transformer_dtype`。这是一个真实 forward bug，已修复。
 
-### 9.2 后续 log 同时存在的 GPU/NVML 环境问题
+### 9.2 GPU/NVML环境问题与最新GPU6 retry
 
-日志：
+较早日志：
 
 ```text
 Can't initialize NVML
@@ -550,7 +537,8 @@ Device: cpu
 - NVML/CUDA 问题决定“是否真的在GPU运行”；
 - `safe_get_full_grad` 问题决定“ZeRO下何时读取梯度”。
 
-当前 launcher 已增加 CUDA fail-fast，避免再次在 CPU 上加载2B模型后才失败；但尚未在恢复正常的真实 GPU 环境中完成新版一步 smoke。
+当前 launcher 已增加 CUDA fail-fast，避免再次在 CPU 上加载2B模型。最新
+`rsig_v1_smoke_1step_gpu6_retry1.log`已确认`Device: cuda:0`、bf16、正确Push/Pick RSIG数据，并完成完整forward和backward；最终在DeepSpeed首次Adam step申请7.67 GiB时因只剩5.22 GiB而OOM。它证明训练主链路基本打通，但尚未完成一个optimizer step，也尚未记录gate更新。
 
 ## 10. 下一次 smoke 应该看到什么
 
@@ -568,6 +556,7 @@ rsig_direction_loss                     finite
 
 rsig_diag/action_role_projection_grad_norm         > 0
 rsig_diag/action_interaction_projection_grad_norm  > 0
+rsig_diag/action_plan_projection_grad_norm         > 0
 rsig_diag/video_alpha_grad_norm                     > 0
 rsig_diag/video_out_grad_norm                       = 0  # 第一步预期
 video_alpha_before_step != video_alpha_after_step
@@ -622,7 +611,7 @@ H18
 ## 12. 当前最没有信心、也最应该先验证的三点
 
 1. **真实2B checkpoint的H18空间合同**：代码预期 current front+wrist 为392个空间 token，但必须以真实GPU shape诊断确认，synthetic test不能代替。
-2. **Plan token 的固定随机投影**：当前 detach 位置让 `plan_to_hidden` 完全不训练。它可能削弱Plan condition，应在确认后改为只 detach `plan_features`，并保留当前版本作为消融。
+2. **Plan-to-Action真实GPU梯度**：固定随机投影已修正，focused test证明梯度边界正确；仍需下一次成功optimizer step记录真实2B run中的Plan投影梯度和loss量级。
 3. **辅助损失权重和 gate 动态**：五项权重当前都以1作为起点，尚无20-step真实GPU量级证据；不能直接据此启动40k并声称稳定。
 
 因此最短且可靠的后续顺序仍是：
