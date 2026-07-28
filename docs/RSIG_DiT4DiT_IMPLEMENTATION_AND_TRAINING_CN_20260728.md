@@ -1,6 +1,6 @@
 # RSIG-DiT4DiT v1 实现、训练与验证手册
 
-更新时间：2026-07-28 02:42:48 UTC
+更新时间：2026-07-28 03:27:43 UTC
 
 ## 1. 当前已经实现到哪里
 
@@ -25,6 +25,13 @@ v3 raw HDF5 + robot-base sidecar
 H18' = H18 + video_alpha × role/interaction cross-attention residual
 video_alpha初始化为0
 ```
+
+这里不是“只挂 auxiliary loss”：
+
+- `Role/Interaction → 3个RSIG token → Action DiT → action_dit_loss`，Action主损失直接反传到role/interaction及其Action投影。
+- `Role/Interaction → block-17 zero-init residual → Video DiT → future_video_loss`，Video主损失第一步先反传到`video_alpha`；gate离开0后继续反传到video adapter和共享role/interaction。
+- 3个Plan token会进入Action DiT并改变预测，但v1按既定因果边界在该分支stop-gradient；Plan head只由direction/moving supervision训练。这一点是有意设计，不应误报为Action loss训练Plan predictor。
+- `COSMOS_DETACH_HIDDEN=true`仍保持官方最小改动边界：Action loss不经H18回传Video DiT；Video DiT由`future_video_loss`全参更新。
 
 训练 state 是 `(1,60)`：
 
@@ -149,9 +156,16 @@ action_dit_loss
 future_video_loss
 rsig_role/relation/contact/moving/direction_loss
 total_loss
+rsig_diag/action_role_projection_grad_norm > 0
+rsig_diag/action_interaction_projection_grad_norm > 0
+rsig_diag/video_alpha_grad_norm > 0
+rsig_diag/video_hidden_dim_* 与真实H18布局一致
+rsig_diag/video_alpha_before_step != video_alpha_after_step
 无shape/dtype/OOM/NaN错误
-checkpoint可保存
+final_model可保存
 ```
+
+Plan stop-gradient由focused unit test验证，不使用ZeRO-2清理后的`.grad` presence作运行时证据。smoke launcher默认使用`NUM_WARMUP_STEPS=0`，因此一步即可观察gate更新；它关闭额外DDIM eval和中间checkpoint，只保留训练结束时的`final_model`。
 
 ## 7. 4 GPU 20-step校准
 
@@ -161,18 +175,12 @@ PYTHONNOUSERSITE=1 \
 PYTHON_BIN=/remote-home/jinminghao/miniconda3/envs/cosmos/bin/python \
 MANISKILL_EORT_COLLECTION_ROOT=/remote-home/jinminghao/datasets/maniskill_eort_large_v3_sim2real \
 BASE_MODEL=/remote-home/jinminghao/ckpts/Cosmos-Predict2.5-2B \
-NUM_PROCESSES=4 \
-PER_DEVICE_BATCH_SIZE=1 \
-GRADIENT_ACCUMULATION_STEPS=4 \
-MAX_TRAIN_STEPS=20 \
-SAVE_INTERVAL=20 \
-LOGGING_FREQUENCY=1 \
 RUN_ID=maniskill_eort_v3_push_pick_rsig_v1_calibration20 \
-nohup bash examples/RLBench_EORT/train_files/run_maniskill_eort_v3_joint_rsig_v1.sh \
+nohup bash examples/RLBench_EORT/train_files/run_maniskill_eort_v3_joint_rsig_v1_calibration_20step.sh \
 > logs/maniskill_eort_v3_policy/rsig_v1_calibration20.log 2>&1 &
 ```
 
-根据五项raw auxiliary loss、梯度、`video_alpha`、step time和峰值显存确定最终权重。然后用20-step checkpoint验证save/resume，不先启动40k。
+launcher固定4 GPU、batch 1、accumulation 4、20步、warmup 5000、decord、无DDIM eval、每步诊断，并在step 20保存checkpoint。当前loss日志是rank-0最后一个accumulation microbatch，只适合finite/数量级判断，不是全局effective-batch均值；梯度诊断还会引入额外all-reduce，因此该run也不能用于正式吞吐结论。根据Action/Video主loss、五项raw auxiliary loss、路径专属梯度、`video_alpha`、外部完整optimizer-step wall time和峰值显存确定最终权重。然后用20-step checkpoint验证save/resume，不先启动40k。
 
 ## 8. 4 GPU正式训练
 

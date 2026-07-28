@@ -1,5 +1,19 @@
 # Modification Log
 
+## 2026-07-28 UTC - Additive color-language and physical-distractor v4 collection branch
+
+- Reason: The requested PushCube/PickCube collection must make the manipulated cube visually and linguistically unambiguous while testing clutter robustness, without changing the established v3 baseline or reintroducing the disallowed visual occlusion panel.
+- Exact change: Added opt-in `PushCubeEORTColorDistractors-v1` and `PickCubeEORTColorDistractors-v1`. Each seed selects one of six target colors and emits a matching instruction; the existing v3 table color, lighting and three-camera perturbations are reused. Each episode adds exactly three collision-enabled side-band distractors: one differently colored cube, a target-colored sphere, and a third-color cylinder. Added non-overwriting `objectcentric_v4` derivation, preview instruction overlay, collector variant selection and matching fail-closed audit. Target/distractor IDs, colors, poses and contact diagnostics remain oracle metadata; only the instruction is intended as language conditioning. Existing v1/v2/v3 environments, schemas and outputs are unchanged.
+- Verification plan: Before any large collection, run two successful source-to-controller-replay episodes per task on an explicitly selected renderer GPU; require all four terminal-success gates, v4 sidecars, H.264 previews, and visual review of the instruction/color/distractors. Large collection remains blocked on that review.
+
+## 2026-07-28 03:27:43 UTC - Add an auditable RSIG main-gradient gate and finish the bulk data/loader gates
+
+- Reason: finite auxiliary losses alone cannot prove that RSIG information changes Video DiT generation or Action DiT prediction. The one-step and 20-step gates therefore need path-specific runtime evidence before any 40k run.
+- Exact change: in the sibling DiT4DiT repository, added opt-in `RSIG_GRAD_DIAGNOSTICS` metrics after backward and before the DeepSpeed optimizer step. They use ZeRO-safe full gradients on every rank and record Action-only role/interaction projection gradients, Video-only `video_alpha` gradient, downstream video-projection gradient, gate value before/after the step, live Video hidden shape and rank-local peak CUDA allocation. Plan stop-gradient remains covered by its focused unit test because low-precision `.grad` presence is not a valid ZeRO-2 diagnostic. Added a true one-step smoke preset with no DDIM eval, zero warmup and decord, plus a matched four-GPU 20-step calibration launcher. No model output, loss term, optimizer, dataset field or baseline switch changed.
+- Data gate: the existing no-overwrite RSIG exporter completed Push/Pick train/val/test: `500/100/200` episodes per task, `1600` episodes and `3200` front/wrist MP4s in total. Every split has matching Parquet/video counts, 44D RSIG targets, only front+wrist cameras, and no future-object target view.
+- Verification: all six conversion summaries and file counts pass; the joint loader returns state `(1,60)`, action `(8,7)` and five `(3,224,448)` frames; Python compilation, seven focused RSIG tests, shell syntax/dry-run and a standalone DeepSpeed `safe_get_full_grad` check pass.
+- Unresolved gate: all eight local A100s were occupied at 89-100% utilization with only 13-24.5 GiB free, below the observed requirements of the full-finetune path. The real Cosmos 2B one-step and four-GPU 20-step runs were therefore not started against unrelated jobs; H18 shape, main-path gradients, gate movement, loss scales and peak memory remain runtime gates.
+
 ## 2026-07-28 02:42:48 UTC - Implement deployable RSIG-v1 DiT4DiT pipeline
 
 - Reason: the confirmed final design required one complete, reversible implementation that works with the existing independent-sample LeRobot loader and does not reintroduce episode memory, an oracle Goal Slot, phase labels, or future targets as policy inputs.
