@@ -2,6 +2,9 @@
 
 更新时间：2026-07-28 03:27:43 UTC
 
+前向、反向、detach边界和DeepSpeed梯度诊断的逐参数说明见
+`docs/RSIG_DiT4DiT_FORWARD_BACKWARD_AND_GRADIENT_FLOW_CN_20260728.md`。
+
 ## 1. 当前已经实现到哪里
 
 当前代码已经形成一条可切换、无 memory、无 Goal Slot、无 phase 输入的完整工程链路：
@@ -180,7 +183,7 @@ nohup bash examples/RLBench_EORT/train_files/run_maniskill_eort_v3_joint_rsig_v1
 > logs/maniskill_eort_v3_policy/rsig_v1_calibration20.log 2>&1 &
 ```
 
-launcher固定4 GPU、batch 1、accumulation 4、20步、warmup 5000、decord、无DDIM eval、每步诊断，并在step 20保存checkpoint。当前loss日志是rank-0最后一个accumulation microbatch，只适合finite/数量级判断，不是全局effective-batch均值；梯度诊断还会引入额外all-reduce，因此该run也不能用于正式吞吐结论。根据Action/Video主loss、五项raw auxiliary loss、路径专属梯度、`video_alpha`、外部完整optimizer-step wall time和峰值显存确定最终权重。然后用20-step checkpoint验证save/resume，不先启动40k。
+launcher固定4 GPU、batch 1、accumulation 4、20步、warmup 5000、decord、无DDIM eval、每步诊断，并在step 20保存checkpoint。当前loss日志是rank-0最后一个accumulation microbatch，只适合finite/数量级判断，不是全局effective-batch均值；梯度诊断现使用backward期间的当前rank临时autograd hook，不再聚合ZeRO完整梯度，但该run仍包含逐步诊断，不能用于正式吞吐结论。根据Action/Video主loss、五项raw auxiliary loss、路径专属梯度、`video_alpha`、外部完整optimizer-step wall time和峰值显存确定最终权重。然后用20-step checkpoint验证save/resume，不先启动40k。
 
 ## 8. 4 GPU正式训练
 
