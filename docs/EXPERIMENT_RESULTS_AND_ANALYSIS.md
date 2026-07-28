@@ -1,5 +1,20 @@
 # Experiment Results and Analysis
 
+## 2026-07-28 02:46:55 UTC - Push/Pick built-in distractor preview
+
+- Setup: added an isolated preview-only script without changing the registered Push/Pick/EORT baselines, rewards, success conditions, collectors, or training inputs. Seed 0 used CPU PhysX plus the GPU 1 renderer and all eight dependency-free actor builders: cube, box, cylinder, sphere, false red/white target, two-color peg, four-color peg, and high-friction colorful cube. Per user direction, no visual occlusion panel was included; unavailable YCB assets were not downloaded.
+- Result: the unchanged official Panda planners remained successful for both tasks. Push produced 72 frames/2.4 s and Pick 75 frames/2.5 s. Both videos are H.264, yuv420p, 512x512 under `/remote-home/jinminghao/datasets/maniskill_distractor_preview_20260728`.
+- Analysis: this proves that mixed dynamic-collision, fixed-collision, and visual-only distractors can coexist with the current tasks when placed outside the nominal central motion corridor. It does not test obstacle avoidance, hard clutter, random-count coverage, tracker robustness, or OOD success rate, and it is not training data. The original combined two-scene recording completed both videos but hit a SAPIEN teardown exit 139 after writing results; the preview entry now records one task per process to avoid sequential scene teardown.
+- Runtime/next gate: the revised single-task entry exited 0 on an additional Push seed-1 smoke. If this visual layout is accepted, a permanent EORT distractor split still needs explicit approval, seeded non-overlap tests, target/distractor provenance, collector/audit integration, and a decision on whether obstacle-aware planning is in scope.
+
+## 2026-07-28 02:42:48 UTC - RSIG-v1 implementation and real-data loader gate
+
+- Scope: implemented the confirmed RSIG-v1 path additively in DiT4DiT; no model training, checkpoint production, simulator collection, retained dataset replacement, or GPU reservation was performed.
+- Real-data gate: converted one existing successful Push v3 controller episode (`62` action-aligned frames) into a fresh temporary front+wrist RSIG dataset. Conversion reported 44D auxiliary targets, no goal/phase/memory policy input, and two H.264 video keys. The actual DiT4DiT loader returned state `(1,60)`, action `(8,7)`, and five `(3,224,448)` frames.
+- Test gate: 27 focused exporter/DataConfig/model/framework/eval-client tests pass. Coverage includes no-goal export, exact 44-field ordering, two-view videos, target masking, all auxiliary-head gradients, six Action tokens, Plan stop-gradient, zero-init Video residual identity, train-60D/inference-16D splitting, target-tail non-leakage, baseline parity, and RSIG overlay rendering.
+- Repository regression: the full DiT4DiT suite reports `93 passed, 1 failed`; the only failure is the pre-existing RLBench environment alias expectation for `slide-block-to-color-target`, outside the ManiSkill/RSIG files changed here. It was not silently patched as part of this work.
+- Analysis: the implementation is ready for loader-only and full-model smoke, not for a 40k scientific conclusion. The next required evidence is single-GPU forward, one-step backward, 4-GPU 20-step loss calibration, save/resume, and one Push plus one Pick closed-loop rollout. Only after those gates should R0 Full RSIG be compared with the already retained robot-only and learned-tracker-flat baselines.
+
 ## 2026-07-23 08:00 UTC - Franka task motion-planning preview and Piper availability audit
 
 - Protocol: used the existing ManiSkill Panda motion-planning runner with CPU simulation, GPU rendering, deterministic disjoint seed blocks, `only_count_success`, bounded attempts and three retained successful trajectories per task. Outputs are additive under `/remote-home/jinminghao/datasets/maniskill_task_preview_20260723`; no existing data was overwritten or deleted.

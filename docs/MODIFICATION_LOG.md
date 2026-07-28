@@ -1,5 +1,13 @@
 # Modification Log
 
+## 2026-07-28 02:42:48 UTC - Implement deployable RSIG-v1 DiT4DiT pipeline
+
+- Reason: the confirmed final design required one complete, reversible implementation that works with the existing independent-sample LeRobot loader and does not reintroduce episode memory, an oracle Goal Slot, phase labels, or future targets as policy inputs.
+- Exact change: in the sibling DiT4DiT repository, added a front+wrist RSIG-v1 LeRobot export with a fixed 44D auxiliary label tail; added the 60D train/16D inference state contract and named Push/Pick mixtures; implemented EEF/Object role slots, a continuous interaction token, h=1/4/8 EEF/Object direction/moving heads, six Action DiT condition tokens, Plan-to-Action stop-gradient, and an optional zero-initialized role/interaction residual at live Cosmos H18. Added loss aggregation, full-training/smoke/export launchers, RSIG inference mode and rollout overlays. Existing robot-only, learned-tracker, object-dynamics and official-minimal paths remain selected when `RSIG_ENABLED=false`.
+- Data semantics: role UV uses simulator mask centroids for Object and calibrated TCP projection for EEF; current object-moving uses robot-base linear speed above `fps × 1 mm`; future direction is unit displacement with a 1 mm moving threshold and terminal valid masks. Goal, object-to-goal, phase, grasp and memory fields are absent from the RSIG dataset and policy.
+- Verification: 27 focused tests pass; a retained real Push trajectory exported to a fresh two-camera LeRobot dataset and loaded as state `(1,60)`, action `(8,7)`, and five temporal front+wrist tensors `(3,224,448)`. Synthetic framework tests prove that changing all 44 GT labels leaves Action DiT condition tokens unchanged and that `RSIG_ENABLED=false` restores the 8-token baseline condition.
+- Unresolved gate: no current-GPU full Cosmos forward/backward, checkpoint resume, or RSIG closed-loop rollout has run. The actual checkpoint H18 `2×14×28` layout/hook timing, auxiliary-loss scales, zero gate movement, and 4-GPU memory must pass the documented smoke sequence before a 40k run.
+
 ## 2026-07-27 UTC - Replace the three-node RSIG proposal with a loader-compatible v1
 
 - Reason: the current LeRobot loader samples independent timesteps and cannot train persistent episode memory; precise Goal Slot supervision is also undefined when the goal is invisible and risks distilling simulator scene templates.
