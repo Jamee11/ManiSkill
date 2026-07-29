@@ -1,6 +1,17 @@
 # RSIG-DiT4DiT v1 实现、训练与验证手册
 
-更新时间：2026-07-28 03:27:43 UTC
+更新时间：2026-07-29 UTC
+
+本文是当前 RSIG-DiT4DiT 的**唯一总入口文档**，用于回答：
+
+- 当前相对原版 DiT4DiT 改了什么；
+- 数据如何从 ManiSkill 进入模型；
+- RSIG 如何同时作用于 Video DiT 和 Action DiT；
+- v3 干净数据与 v4 彩色干扰物数据如何训练；
+- RSIG、robot-only baseline 如何在干净/干扰环境闭环评估；
+- 当前哪些结果已经验证，哪些仍未完成。
+
+若命令与早期计划文档冲突，以本文和仓库当前脚本为准。
 
 前向、反向、detach边界和DeepSpeed梯度诊断的逐参数说明见
 `docs/RSIG_DiT4DiT_FORWARD_BACKWARD_AND_GRADIENT_FLOW_CN_20260728.md`。
@@ -44,6 +55,15 @@ video_alpha初始化为0
 ```
 
 推理严格接收 `(1,16)`，不构造44个零占位。目标tail任意改变不会改变RSIG预测token或Action condition。
+
+截至 2026-07-29 的实际状态：
+
+- v3 Push/Pick 联合 RSIG 已训练并保存 `steps_10000_pytorch_model.pt`；
+- 该 checkpoint 已完成干净环境 Push/Pick 各3次闭环，结果均为 `3/3`，零动作裁剪；
+- eval 已修复 standalone BF16 dtype，并生成带 RSIG 数值叠加的 H.264 视频；
+- 正式干净环境 `50+50` 尚未完成：两次启动都在模型搬运阶段被同机并发任务动态占满显存，rollout 未开始；
+- v4 彩色干扰数据已完整导出并通过 loader gate，但 v4 RSIG 正式训练 checkpoint 尚未产生；
+- v4 彩色干扰闭环环境、真实 test seed manifest 和 robot-only/RSIG eval 入口已搭好，尚未取得正式成功率。
 
 ## 2. 44D label顺序
 
@@ -197,15 +217,15 @@ PYTHON_BIN=/remote-home/jinminghao/miniconda3/envs/cosmos/bin/python \
 MANISKILL_EORT_COLLECTION_ROOT=/remote-home/jinminghao/datasets/maniskill_eort_large_v3_sim2real \
 BASE_MODEL=/remote-home/jinminghao/ckpts/Cosmos-Predict2.5-2B \
 NUM_PROCESSES=4 \
-PER_DEVICE_BATCH_SIZE=3 \
-GRADIENT_ACCUMULATION_STEPS=4 \
+PER_DEVICE_BATCH_SIZE=4 \
+GRADIENT_ACCUMULATION_STEPS=3 \
 MAX_TRAIN_STEPS=40000 \
 SAVE_INTERVAL=10000 \
 LOGGING_FREQUENCY=100 \
 WANDB_MODE=offline \
-RUN_ID=maniskill_eort_v3_push_pick_front_wrist_rsig_v1_fullft_40k \
+RUN_ID=maniskill_eort_v3_push_pick_front_wrist_rsig_v1_planproj_fullft_40k_bs4acc3 \
 nohup bash examples/RLBench_EORT/train_files/run_maniskill_eort_v3_joint_rsig_v1.sh \
-> logs/maniskill_eort_v3_policy/rsig_v1_fullft_40k.log 2>&1 &
+> logs/maniskill_eort_v3_policy/rsig_v1_planproj_fullft_40k_bs4acc3.log 2>&1 &
 
 echo "PID=$!"
 ```
@@ -242,11 +262,542 @@ bash examples/RLBench_EORT/eval_files/run_maniskill_eort_eval.sh \
 
 overlay显示front预测的EEF/Object位置、contact/object-moving概率和h1/h4/h8双运动方向；heatmap peak不是校准visibility概率。
 
+更推荐直接使用会管理 server 生命周期的统一入口：
+
+```bash
+CKPT=/path/to/RSIG_CHECKPOINT.pt \
+MODEL_GPU=4 \
+SIM_GPU=5 \
+EPISODES=50 \
+STAGE=all \
+bash examples/RLBench_EORT/eval_files/run_maniskill_eort_rsig_eval.sh
+```
+
+默认协议固定为：
+
+```text
+Push + Pick
+replan_every = 8
+max_steps = 200
+DDIM steps = 10
+front + wrist
+RSIG overlay = enabled
+```
+
+server 必须使用 BF16。模型卡应稳定空闲至少约24 GiB；“启动前看起来有空间”不足以保证模型搬运期间不会被并发任务抢占。
+
 ## 10. 当前最需要警惕的点
 
-1. 最大不确定性是完整Cosmos checkpoint的H18真实layout和第二次flow-matching hook，synthetic测试不能替代GPU forward/backward。
-2. auxiliary loss默认权重尚未校准，40k前必须先做20-step。
-3. `video_alpha=0`保证初始化不破坏baseline，但也可能长期不动；必须记录它和role-to-video梯度。
-4. Push/Pick ID baseline接近ceiling，最终贡献需要OOD camera/occlusion/physics/distractor和更复杂任务，不能只报告ID success。
-5. RSIG role label仍来自simulator oracle supervision；部署输入不含oracle，但这不自动证明真实检测/跟踪鲁棒。
-6. instruction文本在当前两任务中变化有限，不能据此声称开放词汇grounding。
+1. v3 10k 已证明 checkpoint 可做 RSIG BF16 forward 和闭环动作，但3条/任务不构成正式成功率。
+2. auxiliary loss默认权重仍缺少完整20-step量级与40k稳定性记录。
+3. `video_alpha=0`保证初始化不破坏baseline，但必须持续记录gate和Video侧梯度，不能只看RSIG auxiliary loss。
+4. Push/Pick干净环境接近ceiling，主要结论必须依赖v4 distractor、camera/physics/OOD和配对baseline。
+5. RSIG role label来自simulator oracle监督；部署输入不含oracle不等于已经解决真机grounding。
+6. v4只有六种训练内颜色；它测试未见seed/布局和干扰鲁棒性，不等于开放词汇或未见颜色泛化。
+7. Action DiT推理从随机噪声开始，同一环境seed重跑仍可能变化；严格模型比较必须固定或重复model-noise。
+8. 当前显存竞争会让server在模型搬运阶段OOM；OOM前未开始rollout时不能误报为策略失败。
+
+## 11. 一张图看清当前完整链路
+
+```text
+ManiSkill successful episode
+  ├─ front RGB 256×256
+  ├─ wrist RGB 256×256
+  ├─ robot raw state 8D
+  ├─ robot-base metric action 7D
+  └─ simulator-only RSIG target 44D
+                 │
+                 ▼
+          LeRobot train split
+  5个时序帧，每帧front+wrist横拼
+          image: 5 × (3,224,448)
+          action: (8,7)
+          state:  (1,60)
+                 │
+                 ├─ 前16D：8D robot → sin/cos
+                 └─ 后44D：只作为监督，进入策略前切除
+                 │
+                 ▼
+     Front/Wrist + Instruction + 16D Robot
+                 │
+                 ▼
+        Cosmos Video DiT / H18
+                 │
+          ┌──────┴────────┐
+          ▼               ▼
+  RSIG Role/Interaction   原Video hidden
+  ├─ EEF Role Token       │
+  ├─ Object Role Token    │
+  ├─ Interaction Token    │
+  └─ h1/h4/h8 Plan Tokens│
+          │               │
+          ├─ 6 tokens ────┼──────────────┐
+          │               │              ▼
+          └─ zero-init residual ──► Video DiT
+                                    │
+                                    └─ Future Video Loss
+
+        [Video hidden ; 6 RSIG tokens] + Robot State
+                            │
+                            ▼
+                       Action DiT
+                            │
+                            ▼
+        8 × 7D robot-base metric action chunk
+```
+
+总损失：
+
+```text
+L_total = L_action + λ_video L_future_video + λ_rsig L_rsig
+
+L_rsig =
+  w_role      L_role
+  + w_relation  L_relation
+  + w_contact   L_contact
+  + w_moving    L_moving
+  + w_direction L_direction
+```
+
+关键梯度边界：
+
+- Action loss更新Action DiT、Role/Interaction投影和Plan-to-Action投影；
+- Plan predictor在送入Action token前stop-gradient，只由direction/moving监督训练；
+- `COSMOS_DETACH_HIDDEN=true`时Action loss不穿过H18更新Video DiT；
+- Future Video loss更新Video DiT，并通过zero-init gate逐步启用RSIG Video residual；
+- RSIG loss不是唯一作用路径，RSIG token和Video residual都进入主任务计算。
+
+## 12. 数据合同与train/val/test
+
+### 12.1 每个样本
+
+| 字段 | Shape | 含义 |
+| --- | --- | --- |
+| front+wrist时序图像 | `5 × (3,224,448)` | `t={0,2,4,6,8}`，每个时刻横向拼接两视角 |
+| raw robot state | `8D` | TCP `xyz+rpy`、pad、gripper |
+| policy robot state | `16D` | `sin(8D)+cos(8D)` |
+| RSIG target | `44D` | 只用于训练监督 |
+| train state | `(1,60)` | `16D policy + 44D target` |
+| inference state | `(1,16)` | 只含可部署robot state |
+| action target | `(8,7)` | robot-base `Δxyz+Δrotvec+gripper` |
+
+### 12.2 v3与v4
+
+| 项目 | v3 clean | v4 color distractors |
+| --- | --- | --- |
+| 环境 | `*EORTSim2Real-v1` | `*EORTColorDistractors-v1` |
+| 目标 | 单目标 | 彩色目标cube |
+| 干扰物 | 无人工干扰物 | 3个物理干扰物 |
+| 指令 | generic task text | 六种颜色指令 |
+| train episodes | Push 500 + Pick 500 | Push 1000 + Pick 1000 |
+| val episodes | 独立1M seed段 | Push 200 + Pick 200 |
+| test episodes | 独立2M seed段 | Push 400 + Pick 400 |
+| 模型/shape/action | RSIG-v1 | 完全相同 |
+
+train用于优化；val用于选择checkpoint和调参；test只用于最终报告。不能随机拆同一episode的帧，否则相邻帧和同一场景会泄漏到不同split。
+
+v4闭环必须读取采集时保存的真实test seed manifest。因为collector只保留成功规划轨迹，400个seed并非严格连续：
+
+```text
+Push: 2000000 ... 2000409，共400个唯一成功seed
+Pick: 2000000 ... 2000407，共400个唯一成功seed
+```
+
+## 13. 当前数据路径、mixture与checkpoint
+
+### 13.1 v3 RSIG
+
+```text
+数据：
+/remote-home/jinminghao/datasets/maniskill_eort_large_v3_sim2real/lerobot/train/rsig_v1
+
+mixture：
+maniskill_eort_push_pick_v3_sim2real_rsig_v1_lerobot
+
+当前checkpoint：
+/remote-home/jinminghao/DiT4DiT/checkpoints/maniskill_eort_v3_policy/
+  maniskill_eort_v3_push_pick_front_wrist_rsig_v1_planproj_fullft_40k_bs4acc3/
+  checkpoints/steps_10000_pytorch_model.pt
+```
+
+该run配置为每卡batch 4、gradient accumulation 3、目标40k；当前只确认10k checkpoint存在。
+
+### 13.2 v4 RSIG
+
+```text
+数据：
+/remote-home/jinminghao/datasets/maniskill_eort_color_distractors_v4_20260728/
+  lerobot/train/rsig_v1
+
+mixture：
+maniskill_eort_push_pick_v4_color_distractors_rsig_v1_lerobot
+
+预期checkpoint根目录：
+/remote-home/jinminghao/DiT4DiT/checkpoints/
+  maniskill_eort_v4_color_distractors_policy
+```
+
+### 13.3 robot-only baseline
+
+```text
+/remote-home/jinminghao/DiT4DiT/checkpoints/maniskill_eort_v3_policy/
+  maniskill_eort_v3_push_pick_front_wrist_robot_only_fullft_40k_bs3acc4/
+  checkpoints/steps_40000_pytorch_model.pt
+```
+
+robot-only推理只使用front+wrist、instruction和16D robot state，不使用tracker、oracle object condition或RSIG。
+
+## 14. 完整训练命令
+
+### 14.1 v3 loader gate
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+
+PYTHONNOUSERSITE=1 \
+PYTHON_BIN=/remote-home/jinminghao/miniconda3/envs/cosmos/bin/python \
+MANISKILL_EORT_COLLECTION_ROOT=/remote-home/jinminghao/datasets/maniskill_eort_large_v3_sim2real \
+CHECK_ONLY=1 \
+bash examples/RLBench_EORT/train_files/run_maniskill_eort_v3_joint_rsig_v1.sh
+```
+
+### 14.2 v3四卡正式训练
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+mkdir -p logs/maniskill_eort_v3_policy
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 \
+PYTHONNOUSERSITE=1 \
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+PYTHON_BIN=/remote-home/jinminghao/miniconda3/envs/cosmos/bin/python \
+MANISKILL_EORT_COLLECTION_ROOT=/remote-home/jinminghao/datasets/maniskill_eort_large_v3_sim2real \
+BASE_MODEL=/remote-home/jinminghao/ckpts/Cosmos-Predict2.5-2B \
+NUM_PROCESSES=4 \
+PER_DEVICE_BATCH_SIZE=4 \
+GRADIENT_ACCUMULATION_STEPS=3 \
+MAX_TRAIN_STEPS=40000 \
+SAVE_INTERVAL=10000 \
+LOGGING_FREQUENCY=100 \
+VIDEO_BACKEND=decord \
+NUM_WORKERS=8 \
+WANDB_MODE=offline \
+RUN_ID=maniskill_eort_v3_push_pick_front_wrist_rsig_v1_planproj_fullft_40k_bs4acc3 \
+nohup bash examples/RLBench_EORT/train_files/run_maniskill_eort_v3_joint_rsig_v1.sh \
+> logs/maniskill_eort_v3_policy/rsig_v1_planproj_fullft_40k_bs4acc3.log 2>&1 &
+
+echo "PID=$!"
+```
+
+### 14.3 v4 loader gate
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+
+PYTHONNOUSERSITE=1 \
+PYTHON_BIN=/remote-home/jinminghao/miniconda3/envs/cosmos/bin/python \
+MANISKILL_EORT_COLLECTION_ROOT=/remote-home/jinminghao/datasets/maniskill_eort_color_distractors_v4_20260728 \
+CHECK_ONLY=1 \
+bash examples/RLBench_EORT/train_files/run_maniskill_eort_v4_color_distractors_joint_rsig_v1.sh
+```
+
+### 14.4 v4四卡20-step gate
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+mkdir -p logs/maniskill_eort_v4_color_distractors_policy
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 \
+PYTHONNOUSERSITE=1 \
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+PYTHON_BIN=/remote-home/jinminghao/miniconda3/envs/cosmos/bin/python \
+MANISKILL_EORT_COLLECTION_ROOT=/remote-home/jinminghao/datasets/maniskill_eort_color_distractors_v4_20260728 \
+BASE_MODEL=/remote-home/jinminghao/ckpts/Cosmos-Predict2.5-2B \
+NUM_PROCESSES=4 \
+PER_DEVICE_BATCH_SIZE=1 \
+GRADIENT_ACCUMULATION_STEPS=4 \
+MAX_TRAIN_STEPS=20 \
+NUM_WARMUP_STEPS=0 \
+SAVE_INTERVAL=20 \
+LOGGING_FREQUENCY=1 \
+NUM_WORKERS=0 \
+RSIG_GRAD_DIAGNOSTICS=true \
+RSIG_GRAD_DIAGNOSTICS_FREQUENCY=1 \
+WANDB_MODE=offline \
+RUN_ID=maniskill_eort_v4_color_distractors_rsig_v1_cal20 \
+nohup bash examples/RLBench_EORT/train_files/run_maniskill_eort_v4_color_distractors_joint_rsig_v1.sh \
+> logs/maniskill_eort_v4_color_distractors_policy/rsig_v1_cal20_4xa100.log 2>&1 &
+
+echo "PID=$!"
+```
+
+### 14.5 v4四卡40k
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+mkdir -p logs/maniskill_eort_v4_color_distractors_policy
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 \
+PYTHONNOUSERSITE=1 \
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+PYTHON_BIN=/remote-home/jinminghao/miniconda3/envs/cosmos/bin/python \
+MANISKILL_EORT_COLLECTION_ROOT=/remote-home/jinminghao/datasets/maniskill_eort_color_distractors_v4_20260728 \
+BASE_MODEL=/remote-home/jinminghao/ckpts/Cosmos-Predict2.5-2B \
+NUM_PROCESSES=4 \
+PER_DEVICE_BATCH_SIZE=3 \
+GRADIENT_ACCUMULATION_STEPS=4 \
+MAX_TRAIN_STEPS=40000 \
+SAVE_INTERVAL=10000 \
+LOGGING_FREQUENCY=100 \
+VIDEO_BACKEND=decord \
+NUM_WORKERS=8 \
+RSIG_GRAD_DIAGNOSTICS=false \
+WANDB_MODE=offline \
+RUN_ID=maniskill_eort_v4_color_distractors_push_pick_rsig_v1_fullft_40k_bs3acc4 \
+nohup bash examples/RLBench_EORT/train_files/run_maniskill_eort_v4_color_distractors_joint_rsig_v1.sh \
+> logs/maniskill_eort_v4_color_distractors_policy/rsig_v1_fullft_40k_bs3acc4.log 2>&1 &
+
+echo "PID=$!"
+```
+
+若20-step证明batch 3超显存，使用：
+
+```text
+PER_DEVICE_BATCH_SIZE=1
+GRADIENT_ACCUMULATION_STEPS=12
+```
+
+## 15. 完整闭环评估命令
+
+### 15.1 v3干净环境：RSIG checkpoint
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+mkdir -p logs/maniskill_eort_v3_policy
+
+CKPT=$PWD/checkpoints/maniskill_eort_v3_policy/maniskill_eort_v3_push_pick_front_wrist_rsig_v1_planproj_fullft_40k_bs4acc3/checkpoints/steps_10000_pytorch_model.pt \
+MODEL_GPU=4 \
+SIM_GPU=5 \
+EPISODES=50 \
+STAGE=all \
+REPLAN_EVERY=8 \
+MAX_STEPS=200 \
+STAMP=rsig10k_clean_test50 \
+nohup bash examples/RLBench_EORT/eval_files/run_maniskill_eort_rsig_eval.sh \
+> logs/maniskill_eort_v3_policy/rsig10k_clean_test50.log 2>&1 &
+
+echo "PID=$!"
+```
+
+### 15.2 v4彩色干扰环境：RSIG checkpoint
+
+旧v3 checkpoint和未来v4 checkpoint共用同一入口，只替换`CKPT`：
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+mkdir -p logs/maniskill_eort_v4_color_distractors
+
+CKPT=/path/to/RSIG_CHECKPOINT.pt \
+MODEL_GPU=4 \
+SIM_GPU=5 \
+EPISODES=50 \
+STAGE=all \
+REPLAN_EVERY=8 \
+MAX_STEPS=200 \
+STAMP=rsig_v4_test50 \
+nohup bash examples/RLBench_EORT/eval_files/run_maniskill_eort_v4_color_distractors_rsig_eval.sh \
+> logs/maniskill_eort_v4_color_distractors/rsig_v4_test50.log 2>&1 &
+
+echo "PID=$!"
+```
+
+该wrapper自动：
+
+- 切换到`Push/PickCubeEORTColorDistractors-v1`；
+- 读取Push/Pick各自真实test seed manifest；
+- 按`target_color_id`生成六种颜色指令；
+- 启用BF16 server和RSIG overlay；
+- 将输出写入`eval_outputs/maniskill_eort_v4_color_distractors`。
+
+### 15.3 v4彩色干扰环境：干净数据训练的robot-only baseline
+
+先用短变量保存manifest，避免终端复制时长路径被换行拆断：
+
+```bash
+cd /remote-home/jinminghao/DiT4DiT
+mkdir -p logs/maniskill_eort_v4
+
+DATA=/remote-home/jinminghao/datasets/maniskill_eort_color_distractors_v4_20260728
+PUSH_MANIFEST="$DATA/push_cube/test/color_distractors/raw/PushCubeEORTColorDistractors-v1/motionplanning/push_cube_test_color_distractors_seed2000000_n400.seed_manifest.json"
+PICK_MANIFEST="$DATA/pick_cube/test/color_distractors/raw/PickCubeEORTColorDistractors-v1/motionplanning/pick_cube_test_color_distractors_seed2000000_n400.seed_manifest.json"
+
+test -f "$PUSH_MANIFEST" && test -f "$PICK_MANIFEST"
+```
+
+```bash
+CKPT=$PWD/checkpoints/maniskill_eort_v3_policy/maniskill_eort_v3_push_pick_front_wrist_robot_only_fullft_40k_bs3acc4/checkpoints/steps_40000_pytorch_model.pt \
+CONDITION=robot_only \
+RSIG_OVERLAY=0 \
+MODEL_GPU=4 \
+SIM_GPU=5 \
+EPISODES=50 \
+STAGE=all \
+REPLAN_EVERY=8 \
+MAX_STEPS=200 \
+EVAL_VARIANT=color_distractors_v4 \
+OUTPUT_ROOT=$PWD/eval_outputs/maniskill_eort_v4_color_distractors \
+PUSH_ENV_ID=PushCubeEORTColorDistractors-v1 \
+PICK_ENV_ID=PickCubeEORTColorDistractors-v1 \
+PUSH_SEED_MANIFEST="$PUSH_MANIFEST" \
+PICK_SEED_MANIFEST="$PICK_MANIFEST" \
+STAMP=robot_only_40k_v4_test50 \
+nohup bash examples/RLBench_EORT/eval_files/run_maniskill_eort_robot_only_baseline_eval.sh \
+> logs/maniskill_eort_v4/robot_only_40k_v4_test50.log 2>&1 &
+
+echo "PID=$!"
+```
+
+### 15.4 结果与视频审计
+
+```bash
+tail -f /path/to/eval.log
+find /path/to/eval_output -name summary.json -print -exec cat {} \;
+find /path/to/eval_output -name episodes.jsonl -print
+find /path/to/eval_output -name '*.mp4' | wc -l
+```
+
+每个episode记录：
+
+```text
+seed
+instruction
+steps
+success
+clipped_actions
+valid_condition_steps
+```
+
+RSIG视频为front+wrist横拼的H.264 MP4。front overlay显示：
+
+```text
+EEF/Object role位置与heatmap peak
+contact probability
+object-moving probability
+h1/h4/h8的EEF/Object robot-base XY方向与moving probability
+```
+
+这些是模型预测，不是GT；heatmap peak不能称为校准visibility。
+
+## 16. 公平实验矩阵
+
+最小主实验：
+
+| 训练 | 测试环境 | 目的 |
+| --- | --- | --- |
+| clean robot-only | clean | 原版式ID baseline |
+| clean RSIG | clean | 确认RSIG不破坏基础能力 |
+| clean robot-only | v4 distractor test | 无结构条件的OOD baseline |
+| clean RSIG | v4 distractor test | RSIG零样本抗干扰 |
+| v4 robot-only | v4 distractor test | 数据增强本身收益 |
+| v4 RSIG | v4 distractor test | 完整方法 |
+
+所有比较必须保持：
+
+```text
+相同front+wrist
+相同Video/Action全参训练
+相同训练step与global batch
+相同test seed manifest
+replan=8
+max_steps=200
+相同DDIM steps
+报告零/非零action clipping
+```
+
+建议至少报告：
+
+```text
+Push success / 50
+Pick success / 50
+总体 success / 100
+平均完成步数
+action clipping
+按六种颜色分组结果
+模型随机噪声重复或置信区间
+```
+
+## 17. 当前已有结果与未完成事项
+
+### 已有证据
+
+- v4六组LeRobot数据：3200 episodes、223113 frames、6400个front/wrist视频；
+- v3 RSIG 10k checkpoint存在；
+- v3 clean闭环smoke：Push `3/3`、Pick `3/3`，零action clipping；
+- clean robot-only 40k正式闭环：Push `50/50`、Pick `50/50`，零action clipping；这是单次随机Action采样结果，不代表OOD能力；
+- RSIG standalone BF16 dtype问题已修复；
+- RSIG overlay已验证生成H.264、`512×256`、`yuv420p`视频；
+- robot-only 40k checkpoint完整存在；
+- v4环境ID、颜色指令和两个400-seed manifest已接入闭环launcher。
+
+### 尚未完成
+
+- v3 RSIG正式clean `50+50`；
+- clean robot-only在v4上的`50+50`；
+- clean RSIG在v4上的`50+50`；
+- v4 RSIG 20-step loss/梯度校准；
+- v4 RSIG 40k训练与正式评估；
+- 固定或重复Action DiT model-noise；
+- 真机front/wrist标定、时延、安全和真实grounding。
+
+## 18. 代码位置
+
+```text
+ManiSkill数据与环境：
+/remote-home/jinminghao/WAMs/ManiSkill
+
+DiT4DiT模型与训练：
+/remote-home/jinminghao/DiT4DiT
+```
+
+核心文件：
+
+```text
+DiT4DiT/model/modules/rsig.py
+  RSIG module、6 tokens、44D loss、Video residual
+
+DiT4DiT/model/framework/DiT4DiT.py
+  60D/16D切分、Video/Action接入、总前向
+
+DiT4DiT/model/modules/vlm/Cosmos25.py
+  live Video H18 hook
+
+DiT4DiT/training/train.py
+  Action/Video/RSIG总loss和梯度诊断
+
+examples/RLBench_EORT/train_files/
+  run_maniskill_eort_v3_joint_rsig_v1.sh
+  run_maniskill_eort_v4_color_distractors_joint_rsig_v1.sh
+
+examples/RLBench_EORT/eval_files/
+  eval_maniskill_eort.py
+  run_maniskill_eort_rsig_eval.sh
+  run_maniskill_eort_v4_color_distractors_rsig_eval.sh
+  run_maniskill_eort_robot_only_baseline_eval.sh
+```
+
+## 19. 其他文档如何使用
+
+本文负责“当前事实与执行命令”。其他文档只作专项参考：
+
+- `RSIG_DiT4DiT_FORWARD_BACKWARD_AND_GRADIENT_FLOW_CN_20260728.md`：逐参数梯度与DeepSpeed诊断；
+- `RSIG_DiT4DiT_FINAL_FEASIBLE_PLAN_CN_20260727.md`：为什么删除memory、Goal Slot和phase；
+- `RSIG_DiT4DiT_Problems_and_Solutions_CN.md`：研究问题与方案演化；
+- `TRACKER_BASED_TRAINING_COMMANDS_20260721.md`：早期learned-tracker与robot-only基线历史；
+- DiT4DiT侧`MANISKILL_EORT_V4_COLOR_DISTRACTORS_RSIG_DATA_AND_TRAINING_CN_20260728.md`：v4数据处理与数量审计。
+
+执行新训练或评估前，仍必须先读取：
+
+```text
+/remote-home/jinminghao/WAMs/ManiSkill/docs/思考与隐患.md
+/remote-home/jinminghao/DiT4DiT/docs/思考与隐患.md
+```
