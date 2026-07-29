@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import os
+import json
 from copy import deepcopy
 import time
 import argparse
@@ -13,11 +14,21 @@ from mani_skill.examples.motionplanning.panda.solutions import solvePushCube, so
 MP_SOLUTIONS = {
     "DrawTriangle-v1": solveDrawTriangle,
     "PickCube-v1": solvePickCube,
+    "PickCubeEORT-v1": solvePickCube,
+    "PickCubeEORTCameraRand-v1": solvePickCube,
+    "PickCubeEORTOccluded-v1": solvePickCube,
+    "PickCubeEORTGeometryRand-v1": solvePickCube,
+    "PickCubeEORTSim2Real-v1": solvePickCube,
     "StackCube-v1": solveStackCube,
     "PegInsertionSide-v1": solvePegInsertionSide,
     "PlugCharger-v1": solvePlugCharger,
     "PlaceSphere-v1": solvePlaceSphere,
     "PushCube-v1": solvePushCube,
+    "PushCubeEORT-v1": solvePushCube,
+    "PushCubeEORTCameraRand-v1": solvePushCube,
+    "PushCubeEORTOccluded-v1": solvePushCube,
+    "PushCubeEORTGeometryRand-v1": solvePushCube,
+    "PushCubeEORTSim2Real-v1": solvePushCube,
     "PullCubeTool-v1": solvePullCubeTool,
     "LiftPegUpright-v1": solveLiftPegUpright,
     "PullCube-v1": solvePullCube,
@@ -39,7 +50,15 @@ def parse_args(args=None):
     parser.add_argument("--shader", default="default", type=str, help="Change shader used for rendering. Default is 'default' which is very fast. Can also be 'rt' for ray tracing and generating photo-realistic renders. Can also be 'rt-fast' for a faster but lower quality ray-traced renderer")
     parser.add_argument("--record-dir", type=str, default="demos", help="where to save the recorded trajectories")
     parser.add_argument("--num-procs", type=int, default=1, help="Number of processes to use to help parallelize the trajectory replay process. This uses CPU multiprocessing and only works with the CPU simulation backend at the moment.")
+    parser.add_argument("--start-seed", type=int, default=0, help="First deterministic task seed. Useful for disjoint collection shards.")
+    parser.add_argument("--max-attempts", type=int, default=0, help="Stop after this many attempted seeds; 0 keeps the historical unlimited behavior.")
+    parser.add_argument("--save-seed-manifest", action="store_true", help="Write successful trajectory-to-task-seed records next to the HDF5 file.")
     return parser.parse_args()
+
+
+def validate_attempt_budget(num_traj: int, max_attempts: int) -> None:
+    if max_attempts < 0 or (max_attempts and max_attempts < num_traj):
+        raise ValueError("max_attempts must be 0 or at least num_traj")
 
 def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     env_id = args.env_id
@@ -77,12 +96,15 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
     solve = MP_SOLUTIONS[env_id]
     print(f"Motion Planning Running on {env_id}")
     pbar = tqdm(range(args.num_traj), desc=f"proc_id: {proc_id}")
-    seed = start_seed
+    seed = start_seed + args.start_seed
     successes = []
     solution_episode_lengths = []
     failed_motion_plans = 0
     passed = 0
+    saved_seed_records = []
+    exhausted = False
     while True:
+        attempted_seed = seed
         try:
             res = solve(env, seed=seed, debug=False, vis=True if args.vis else False)
         except Exception as e:
@@ -98,33 +120,61 @@ def _main(args, proc_id: int = 0, start_seed: int = 0) -> str:
             solution_episode_lengths.append(elapsed_steps)
         successes.append(success)
         if args.only_count_success and not success:
-            seed += 1
             env.flush_trajectory(save=False)
             if args.save_video:
                 env.flush_video(save=False)
-            continue
         else:
             env.flush_trajectory()
             if args.save_video:
                 env.flush_video()
+            saved_seed_records.append(
+                {"trajectory": f"traj_{passed}", "seed": attempted_seed, "success": bool(success)}
+            )
             pbar.update(1)
             pbar.set_postfix(
                 dict(
                     success_rate=np.mean(successes),
-                    failed_motion_plan_rate=failed_motion_plans / (seed + 1),
+                    failed_motion_plan_rate=failed_motion_plans / len(successes),
                     avg_episode_length=np.mean(solution_episode_lengths),
                     max_episode_length=np.max(solution_episode_lengths),
                     # min_episode_length=np.min(solution_episode_lengths)
                 )
             )
-            seed += 1
             passed += 1
-            if passed == args.num_traj:
-                break
+        seed += 1
+        if passed == args.num_traj:
+            break
+        if args.max_attempts and len(successes) >= args.max_attempts:
+            exhausted = True
+            break
     env.close()
+    if args.save_seed_manifest:
+        seed_manifest_path = osp.splitext(output_h5_path)[0] + ".seed_manifest.json"
+        with open(seed_manifest_path, "w", encoding="utf-8") as file:
+            json.dump(
+                {
+                    "env_id": env_id,
+                    "start_seed": start_seed + args.start_seed,
+                    "only_count_success": args.only_count_success,
+                    "max_attempts": args.max_attempts,
+                    "attempted_episodes": len(successes),
+                    "successful_episodes": int(sum(successes)),
+                    "failed_motion_plans": failed_motion_plans,
+                    "attempt_budget_exhausted": exhausted,
+                    "saved_trajectory_seeds": saved_seed_records,
+                },
+                file,
+                indent=2,
+            )
+    if exhausted:
+        raise RuntimeError(
+            f"Attempt budget exhausted: saved {passed}/{args.num_traj} successful trajectories "
+            f"after {len(successes)} attempted seeds"
+        )
     return output_h5_path
 
 def main(args):
+    validate_attempt_budget(args.num_traj, args.max_attempts)
     if args.num_procs > 1 and args.num_procs < args.num_traj:
         if args.num_traj < args.num_procs:
             raise ValueError("Number of trajectories should be greater than or equal to number of processes")
